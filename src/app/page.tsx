@@ -5,12 +5,15 @@ import { formatDistance, formatTimeAgo } from '@/lib/utils'
 import { APP_CONFIG, CATEGORIES, ITEM_TYPES } from '@/lib/constants'
 import { Plus, MapPin, User, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useNotifications } from '@/hooks/useNotifications'
 import { createClient } from '@/lib/supabase/client'
 import { LocalSwapLogo } from '@/components/LocalSwapLogo'
+import { NotificationPanel } from '@/components/NotificationPanel'
 import Link from 'next/link'
 
 export default function HomePage() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
+  const { showSuccess, showInfo, requestPermission, permission } = useNotifications()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
   const [items, setItems] = useState<Array<{
@@ -40,6 +43,34 @@ export default function HomePage() {
       fetchNearbyItems()
     }
   }, [location, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show welcome notification for authenticated users
+  useEffect(() => {
+    if (user && !authLoading) {
+      // Welcome notification
+      setTimeout(() => {
+        showInfo(
+          'Benvenuto su LocalSwap!',
+          'Esplora gli oggetti nel tuo vicinato o aggiungi qualcosa da condividere',
+          { label: 'Aggiungi oggetto', url: '/add-item' }
+        )
+      }, 2000)
+
+      // Request notification permission
+      if (permission === 'default') {
+        setTimeout(() => {
+          requestPermission().then(granted => {
+            if (granted) {
+              showSuccess(
+                'Notifiche attivate!', 
+                'Ti avviseremo quando ci sono nuovi oggetti nel tuo vicinato'
+              )
+            }
+          })
+        }, 4000)
+      }
+    }
+  }, [user, authLoading, permission]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -198,6 +229,7 @@ export default function HomePage() {
           
             {user ? (
               <div className="auth-section">
+                <NotificationPanel />
                 <span className="username">
                   Ciao {profile?.username || user.email?.split('@')[0]}!
                 </span>

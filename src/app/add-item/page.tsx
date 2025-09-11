@@ -2,15 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, MapPin, Euro, Clock, Tag, FileText } from 'lucide-react'
+import { ArrowLeft, MapPin, Euro, Clock, Tag, FileText, Camera } from 'lucide-react'
 import { LocalSwapLogo } from '@/components/LocalSwapLogo'
 import { CATEGORIES, ITEM_TYPES, APP_CONFIG } from '@/lib/constants'
 import { useAuth } from '@/hooks/useAuth'
+import { useNotifications } from '@/hooks/useNotifications'
+import { ImageUpload } from '@/components/ImageUpload'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function AddItemPage() {
   const { user, profile, loading: authLoading } = useAuth()
+  const { showSuccess, showError } = useNotifications()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -34,7 +37,8 @@ export default function AddItemPage() {
     price: '',
     location_lat: 0,
     location_lng: 0,
-    location_text: ''
+    location_text: '',
+    images: [] as string[]
   })
   
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
@@ -97,6 +101,7 @@ export default function AddItemPage() {
         currency: 'EUR',
         location: `SRID=4326;POINT(${formData.location_lng} ${formData.location_lat})`,
         address_hint: formData.location_text,
+        images: formData.images,
         user_id: user.id,
         status: 'active'
       }
@@ -122,11 +127,20 @@ export default function AddItemPage() {
         } else if (error.message?.includes('user_id')) {
           setMessage('Errore di autenticazione. Riprova ad accedere.')
         } else {
-          setMessage(`Errore: ${error.message || 'Problema durante la creazione dell\'oggetto'}`)
+          const errorMsg = error.message || 'Problema durante la creazione dell\'oggetto'
+          setMessage(`Errore: ${errorMsg}`)
+          showError('Errore nella pubblicazione', errorMsg)
         }
       } else {
         setMessage('Oggetto aggiunto con successo!')
         console.log('Item created successfully:', data)
+        
+        // Show success notification
+        showSuccess(
+          'Oggetto pubblicato!',
+          `"${formData.title}" è ora visibile ai tuoi vicini`,
+          { label: 'Visualizza', url: '/' }
+        )
         
         // Reset form
         setFormData({
@@ -218,6 +232,19 @@ export default function AddItemPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="add-item-form">
+          {/* Images */}
+          <div className="form-group">
+            <label className="form-label">
+              <Camera size={16} />
+              Foto dell'oggetto
+            </label>
+            <ImageUpload
+              onImagesChange={(urls) => setFormData({...formData, images: urls})}
+              maxImages={3}
+              existingImages={formData.images}
+            />
+          </div>
+
           {/* Title */}
           <div className="form-group">
             <label className="form-label">

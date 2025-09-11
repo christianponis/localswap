@@ -119,9 +119,9 @@ function VerifyForm() {
               <button 
                 type="submit" 
                 disabled={loading || otp.length !== 6}
-                className="submit-btn"
+                className={`submit-btn interactive ${otp.length === 6 ? 'submit-btn-ready' : ''}`}
               >
-                {loading ? 'Verifica in corso...' : 'Verifica codice'}
+                {loading ? 'Verifica in corso...' : otp.length === 6 ? '✅ Verifica codice' : `Inserisci codice (${otp.length}/6)`}
                 {!loading && otp.length === 6 && (
                   <Check size={16} style={{ marginLeft: '8px' }} />
                 )}

@@ -12,7 +12,7 @@ function LoginForm() {
   const [message, setMessage] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [email, setEmail] = useState('')
-  const [mode, setMode] = useState<'phone' | 'email'>('phone')
+  const [mode, setMode] = useState<'phone' | 'email'>('email')
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -157,10 +157,10 @@ function LoginForm() {
                 
                 <button 
                   type="submit" 
-                  disabled={loading}
-                  className="submit-btn"
+                  disabled={loading || !phoneNumber}
+                  className={`submit-btn interactive ${phoneNumber ? 'submit-btn-ready' : ''}`}
                 >
-                  {loading ? 'Invio in corso...' : 'Invia codice SMS'}
+                  {loading ? 'Invio in corso...' : phoneNumber ? '📱 Invia codice SMS' : 'Inserisci numero di telefono'}
                 </button>
               </form>
             )}
@@ -188,10 +188,10 @@ function LoginForm() {
                 
                 <button 
                   type="submit" 
-                  disabled={loading}
-                  className="submit-btn"
+                  disabled={loading || !email}
+                  className={`submit-btn interactive ${email ? 'submit-btn-ready' : ''}`}
                 >
-                  {loading ? 'Invio in corso...' : 'Invia link di accesso'}
+                  {loading ? 'Invio in corso...' : email ? '✉️ Invia link di accesso' : 'Inserisci email'}
                 </button>
               </form>
             )}
