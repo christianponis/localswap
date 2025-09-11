@@ -1,0 +1,39 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b6b"/>
+      <stop offset="50%" style="stop-color:#4ecdc4"/>
+      <stop offset="100%" style="stop-color:#45b7d1"/>
+    </linearGradient>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.95"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="96" cy="96" r="88" fill="url(#bgGradient)" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+  
+  <!-- Exchange symbol -->
+  <g transform="translate(96, 96)">
+    <!-- Curved arrows -->
+    <g stroke="url(#iconGradient)" stroke-width="6" fill="none" stroke-linecap="round">
+      <!-- Left arrow -->
+      <path d="M-32,-16 Q-16,-32 0,-16 Q16,-32 32,-16"/>
+      <path d="M-24,-24 L-32,-16 L-24,-8"/>
+      
+      <!-- Right arrow -->
+      <path d="M32,16 Q16,32 0,16 Q-16,32 -32,16"/>
+      <path d="M24,24 L32,16 L24,8"/>
+      
+      <!-- Center circle -->
+      <circle cx="0" cy="0" r="8" fill="url(#iconGradient)"/>
+    </g>
+  </g>
+  
+  <!-- Decorative dots -->
+  <circle cx="32" cy="48" r="4" fill="rgba(255,255,255,0.7)"/>
+  <circle cx="160" cy="64" r="3" fill="rgba(255,255,255,0.6)"/>
+  <circle cx="48" cy="144" r="4" fill="rgba(255,255,255,0.7)"/>
+  <circle cx="144" cy="128" r="3" fill="rgba(255,255,255,0.6)"/>
+</svg>
