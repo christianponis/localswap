@@ -18,7 +18,7 @@ export function useAuth() {
     // Clear localStorage
     if (typeof window !== 'undefined') {
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-') || key.includes('supabase')) {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('next')) {
           localStorage.removeItem(key)
           console.log('🗑️ Removed localStorage:', key)
         }
@@ -26,11 +26,17 @@ export function useAuth() {
       
       // Clear sessionStorage
       Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('sb-') || key.includes('supabase')) {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('next')) {
           sessionStorage.removeItem(key)
           console.log('🗑️ Removed sessionStorage:', key)
         }
       })
+      
+      // Clear all cookies for this domain
+      document.cookie.split(";").forEach(function(c) { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+      })
+      console.log('🍪 Cleared all cookies')
     }
   }
 

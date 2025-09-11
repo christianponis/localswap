@@ -259,6 +259,14 @@ export default function HomePage() {
                   <User size={16} />
                   Accedi
                 </Link>
+                {/* Fallback per browser con problemi JS */}
+                <a 
+                  href="/auth/login" 
+                  className="login-btn"
+                  style={{ marginLeft: '8px', fontSize: '12px' }}
+                >
+                  Login HTML
+                </a>
               </div>
             )}
           </div>
