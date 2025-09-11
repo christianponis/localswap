@@ -342,6 +342,9 @@ export default function HomePage() {
           <div className="location-status" style={{ fontSize: '10px', opacity: 0.7 }}>
             🕐 Build: 2025-09-11 17:40 (Cache Test)
           </div>
+          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7 }}>
+            <a href="/test-auth" style={{ color: '#3b82f6' }}>🔧 Test Auth Debug</a>
+          </div>
         </div>
       </div>
 
