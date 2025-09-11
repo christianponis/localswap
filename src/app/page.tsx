@@ -17,6 +17,7 @@ export default function HomePage() {
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
   const [jsStatus, setJsStatus] = useState('❌ JS Non funziona')
+  const [storageStatus, setStorageStatus] = useState('Checking...')
   const [items, setItems] = useState<Array<{
     id: string
     title: string
@@ -39,6 +40,37 @@ export default function HomePage() {
     // Test JavaScript functionality
     setJsStatus('✅ JS Funziona!')
     console.log('🔧 JavaScript diagnostics: WORKING')
+    
+    // Test storage and cookies
+    if (typeof window !== 'undefined') {
+      try {
+        // Test localStorage
+        localStorage.setItem('test', 'ok')
+        const localTest = localStorage.getItem('test') === 'ok'
+        localStorage.removeItem('test')
+        
+        // Test sessionStorage  
+        sessionStorage.setItem('test', 'ok')
+        const sessionTest = sessionStorage.getItem('test') === 'ok'
+        sessionStorage.removeItem('test')
+        
+        // Test cookies
+        document.cookie = 'test=ok; path=/'
+        const cookieTest = document.cookie.includes('test=ok')
+        document.cookie = 'test=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+        
+        // Check existing Supabase data
+        const supabaseKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.includes('supabase'))
+        
+        setStorageStatus(`Local:${localTest?'✅':'❌'} Session:${sessionTest?'✅':'❌'} Cookies:${cookieTest?'✅':'❌'} SB-Keys:${supabaseKeys.length}`)
+        
+        console.log('🔧 Storage test results:', { localTest, sessionTest, cookieTest, supabaseKeys })
+        
+      } catch (error) {
+        setStorageStatus('❌ Storage blocked')
+        console.log('🔧 Storage test error:', error)
+      }
+    }
     
     requestLocation()
     
@@ -299,10 +331,13 @@ export default function HomePage() {
           </div>
           
           {/* Diagnostica JavaScript e Auth */}
-          <div className="location-status" style={{ fontSize: '12px', opacity: 0.7 }}>
+          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7, wordBreak: 'break-all' }}>
             🔧 <span>{jsStatus}</span>
             {user ? ' | 👤 Loggato' : ' | 🚪 Non loggato'}
             {authLoading ? ' | ⏳ Caricamento...' : ' | ✅ Auth pronto'}
+          </div>
+          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7, wordBreak: 'break-all' }}>
+            💾 {storageStatus}
           </div>
         </div>
       </div>
