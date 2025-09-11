@@ -4,12 +4,13 @@ import { getFirestore } from 'firebase/firestore'
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDemoKey_ReplaceWithRealKey",
-  authDomain: "localswap-demo.firebaseapp.com",
-  projectId: "localswap-demo", 
-  storageBucket: "localswap-demo.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abc123def456"
+  apiKey: "AIzaSyBuQlP4IUseUSnK2Zm31scCo5HrbNpZZF0",
+  authDomain: "localswap-761cd.firebaseapp.com",
+  projectId: "localswap-761cd",
+  storageBucket: "localswap-761cd.firebasestorage.app",
+  messagingSenderId: "969228383594",
+  appId: "1:969228383594:web:a5878c11769fcd6db0e113",
+  measurementId: "G-ERGSDY5SZS"
 }
 
 // Initialize Firebase
