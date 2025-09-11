@@ -19,7 +19,7 @@ export function useAuth() {
       setUser(session?.user ?? null)
       
       if (session?.user) {
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user.id, session.user.email)
       }
       
       setLoading(false)
@@ -33,7 +33,7 @@ export function useAuth() {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          await fetchProfile(session.user.id)
+          await fetchProfile(session.user.id, session.user.email)
         } else {
           setProfile(null)
         }
@@ -45,7 +45,7 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, userEmail?: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -53,8 +53,31 @@ export function useAuth() {
         .eq('id', userId)
         .single()
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
+        // If profiles table doesn't exist or no profile found, create a basic profile from user data
+        if (error.code === 'PGRST116' || error.code === '42P01') {
+          console.log('No profile found, using basic user info')
+          // Create a basic profile from user email
+          const basicProfile = {
+            id: userId,
+            username: userEmail?.split('@')[0] || 'utente',
+            email: userEmail || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          setProfile(basicProfile as any)
+          return
+        }
         console.error('Error fetching profile:', error)
+        // Still set a basic profile to not block the app
+        const basicProfile = {
+          id: userId,
+          username: userEmail?.split('@')[0] || 'utente',
+          email: userEmail || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        setProfile(basicProfile as any)
         return
       }
 
@@ -65,9 +88,28 @@ export function useAuth() {
           location: data.location ? parseLocation(data.location) : null
         }
         setProfile(profileData)
+      } else {
+        // No profile data, create basic from user
+        const basicProfile = {
+          id: userId,
+          username: userEmail?.split('@')[0] || 'utente',
+          email: userEmail || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        setProfile(basicProfile as any)
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
+      // Still set a basic profile to not block the app
+      const basicProfile = {
+        id: userId,
+        username: userEmail?.split('@')[0] || 'utente', 
+        email: userEmail || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      setProfile(basicProfile as any)
     }
   }
 

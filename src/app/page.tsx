@@ -212,8 +212,11 @@ export default function HomePage() {
     return (
       <div className="app-container">
         <div className="loading">
-          <div className="empty-icon">🏠</div>
+          <LocalSwapLogo size={64} className="animate-pulse" />
           <div className="empty-title">Caricamento LocalSwap...</div>
+          <div className="loading-dots">
+            <span>.</span><span>.</span><span>.</span>
+          </div>
         </div>
       </div>
     )
