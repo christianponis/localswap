@@ -12,35 +12,38 @@ export function useAuth() {
   
   const supabase = createClient()
 
-  // Aggressive clear of all browser data that might interfere
+  // Smart cleanup - only remove potentially corrupted Supabase data  
   const clearCorruptedAuth = () => {
     if (typeof window !== 'undefined') {
       try {
-        console.log('🧹 Aggressive cleanup: removing all potential interfering data')
+        console.log('🧹 Smart cleanup: removing only Supabase-related data')
         
-        // Clear ALL localStorage (not just supabase)
-        localStorage.clear()
-        
-        // Clear ALL sessionStorage  
-        sessionStorage.clear()
-        
-        // Clear all cookies for this domain
-        document.cookie.split(";").forEach(function(c) { 
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;domain=" + window.location.hostname)
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;domain=." + window.location.hostname)
+        // Clear only Supabase-related localStorage
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key)
+            console.log('🗑️ Removed localStorage:', key)
+          }
         })
         
-        // Clear caches if available
-        if ('caches' in window) {
-          caches.keys().then(names => {
-            names.forEach(name => {
-              caches.delete(name)
-            })
-          })
-        }
+        // Clear only Supabase-related sessionStorage
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            sessionStorage.removeItem(key) 
+            console.log('🗑️ Removed sessionStorage:', key)
+          }
+        })
         
-        console.log('✅ Aggressive cleanup completed')
+        // Clear only Supabase-related cookies
+        document.cookie.split(";").forEach(function(c) {
+          const cookieName = c.split('=')[0].trim()
+          if (cookieName.startsWith('sb-') || cookieName.includes('supabase')) {
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+            console.log('🍪 Removed cookie:', cookieName)
+          }
+        })
+        
+        console.log('✅ Smart cleanup completed')
       } catch (error) {
         console.log('⚠️ Some cleanup operations failed:', error)
       }
@@ -51,9 +54,24 @@ export function useAuth() {
     let mounted = true
     let initialLoadComplete = false
 
-    // Aggressive storage cleanup on every app start for browser issues
-    console.log('🧹 Starting aggressive storage cleanup for browser compatibility')
-    clearCorruptedAuth()
+    // Only do aggressive cleanup if we detect potentially corrupted state
+    // NOT on every page load to avoid clearing valid sessions
+    const shouldCleanup = () => {
+      if (typeof window === 'undefined') return false
+      
+      // Check for signs of corruption - many supabase keys or old/corrupted data
+      const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
+      const hasOldData = sbKeys.length > 10 // Too many keys might indicate corruption
+      
+      return hasOldData
+    }
+    
+    if (shouldCleanup()) {
+      console.log('🧹 Detected potential corruption, cleaning up')
+      clearCorruptedAuth()
+    } else {
+      console.log('✅ Storage looks clean, skipping aggressive cleanup')
+    }
 
     // Immediate fallback - set loading false after 100ms if nothing happens
     const quickTimeout = setTimeout(() => {
@@ -111,7 +129,6 @@ export function useAuth() {
         console.log('🔄 Auth event:', event, session?.user?.email || 'No user')
         
         if (event === 'SIGNED_OUT' || !session) {
-          clearCorruptedAuth()
           setUser(null)
           setProfile(null)
         } else if (session?.user) {
@@ -204,7 +221,6 @@ export function useAuth() {
   }
 
   const signOut = async () => {
-    clearCorruptedAuth()
     await supabase.auth.signOut()
   }
 
