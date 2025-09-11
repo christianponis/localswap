@@ -32,7 +32,7 @@ export interface Item {
     lng: number
   }
   address_hint?: string
-  image_urls?: string[]
+  images?: string[]
   status: 'active' | 'reserved' | 'completed' | 'expired'
   expires_at?: string
   views_count: number
@@ -93,6 +93,6 @@ export interface CreateItemData {
   price?: number
   location: Location
   address_hint?: string
-  image_urls?: string[]
+  images?: string[]
   expires_at?: string
 }

@@ -12,12 +12,10 @@ import { NotificationPanel } from '@/components/NotificationPanel'
 import Link from 'next/link'
 
 export default function HomePage() {
-  const { user, profile, loading: authLoading, signOut, clearCorruptedAuth } = useAuth()
+  const { user, profile, loading: authLoading, signOut } = useAuth()
   const { showSuccess, showInfo, requestPermission, permission } = useNotifications()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
-  const [jsStatus, setJsStatus] = useState('❌ JS Non funziona')
-  const [storageStatus, setStorageStatus] = useState('Checking...')
   const [items, setItems] = useState<Array<{
     id: string
     title: string
@@ -37,59 +35,7 @@ export default function HomePage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Test JavaScript functionality
-    setJsStatus('✅ JS Funziona!')
-    console.log('🔧 JavaScript diagnostics: WORKING')
-    
-    // Test storage and cookies
-    if (typeof window !== 'undefined') {
-      try {
-        // Test localStorage
-        localStorage.setItem('test', 'ok')
-        const localTest = localStorage.getItem('test') === 'ok'
-        localStorage.removeItem('test')
-        
-        // Test sessionStorage  
-        sessionStorage.setItem('test', 'ok')
-        const sessionTest = sessionStorage.getItem('test') === 'ok'
-        sessionStorage.removeItem('test')
-        
-        // Test cookies
-        document.cookie = 'test=ok; path=/'
-        const cookieTest = document.cookie.includes('test=ok')
-        document.cookie = 'test=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-        
-        // Check existing Supabase data
-        const supabaseKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.includes('supabase'))
-        
-        setStorageStatus(`Local:${localTest?'✅':'❌'} Session:${sessionTest?'✅':'❌'} Cookies:${cookieTest?'✅':'❌'} SB-Keys:${supabaseKeys.length}`)
-        
-        console.log('🔧 Storage test results:', { localTest, sessionTest, cookieTest, supabaseKeys })
-        
-      } catch (error) {
-        setStorageStatus('❌ Storage blocked')
-        console.log('🔧 Storage test error:', error)
-      }
-    }
-    
     requestLocation()
-    
-    // Check if redirected from successful auth
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search)
-      if (urlParams.get('auth') === 'success') {
-        console.log('🎉 Auth success detected, removing URL param')
-        // Remove the auth=success parameter from URL
-        urlParams.delete('auth')
-        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
-        window.history.replaceState({}, '', newUrl)
-        
-        // Show success message
-        setTimeout(() => {
-          showSuccess('Login riuscito!', 'Benvenuto su LocalSwap')
-        }, 1000)
-      }
-    }
   }, [])
 
   useEffect(() => {
@@ -298,30 +244,10 @@ export default function HomePage() {
                 </button>
               </div>
             ) : (
-              <div className="auth-section">
-                <button
-                  onClick={() => {
-                    clearCorruptedAuth()
-                    showInfo('Cookies puliti', 'Cache di autenticazione pulita. Riprova il login.')
-                  }}
-                  className="debug-btn"
-                  title="Pulisci cache corrotta se il login non funziona"
-                >
-                  🧹
-                </button>
-                <Link href="/auth/login" className="login-btn">
-                  <User size={16} />
-                  Accedi
-                </Link>
-                {/* Fallback per browser con problemi JS */}
-                <a 
-                  href="/auth/login" 
-                  className="login-btn"
-                  style={{ marginLeft: '8px', fontSize: '12px' }}
-                >
-                  Login HTML
-                </a>
-              </div>
+              <Link href="/auth/login" className="login-btn">
+                <User size={16} />
+                Accedi
+              </Link>
             )}
           </div>
           
@@ -330,21 +256,6 @@ export default function HomePage() {
             <span>{locationStatus}</span>
           </div>
           
-          {/* Diagnostica JavaScript e Auth */}
-          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7, wordBreak: 'break-all' }}>
-            🔧 <span>{jsStatus}</span>
-            {user ? ' | 👤 Loggato' : ' | 🚪 Non loggato'}
-            {authLoading ? ' | ⏳ Caricamento...' : ' | ✅ Auth pronto'}
-          </div>
-          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7, wordBreak: 'break-all' }}>
-            💾 {storageStatus}
-          </div>
-          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7 }}>
-            🕐 Build: 2025-09-11 17:40 (Cache Test)
-          </div>
-          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7 }}>
-            <a href="/test-auth" style={{ color: '#3b82f6' }}>🔧 Test Auth Debug</a>
-          </div>
         </div>
       </div>
 
