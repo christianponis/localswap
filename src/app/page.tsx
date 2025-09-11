@@ -16,6 +16,7 @@ export default function HomePage() {
   const { showSuccess, showInfo, requestPermission, permission } = useNotifications()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
+  const [jsStatus, setJsStatus] = useState('❌ JS Non funziona')
   const [items, setItems] = useState<Array<{
     id: string
     title: string
@@ -35,6 +36,10 @@ export default function HomePage() {
   const supabase = createClient()
 
   useEffect(() => {
+    // Test JavaScript functionality
+    setJsStatus('✅ JS Funziona!')
+    console.log('🔧 JavaScript diagnostics: WORKING')
+    
     requestLocation()
     
     // Check if redirected from successful auth
@@ -291,6 +296,13 @@ export default function HomePage() {
           <div className="location-status">
             <MapPin size={16} />
             <span>{locationStatus}</span>
+          </div>
+          
+          {/* Diagnostica JavaScript e Auth */}
+          <div className="location-status" style={{ fontSize: '12px', opacity: 0.7 }}>
+            🔧 <span>{jsStatus}</span>
+            {user ? ' | 👤 Loggato' : ' | 🚪 Non loggato'}
+            {authLoading ? ' | ⏳ Caricamento...' : ' | ✅ Auth pronto'}
           </div>
         </div>
       </div>
