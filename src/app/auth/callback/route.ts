@@ -20,9 +20,8 @@ export async function GET(request: NextRequest) {
     
     if (!error && data.user) {
       console.log('✅ Auth successful, redirecting to:', `${origin}${next}`)
-      // Add a query parameter to indicate successful auth
-      const redirectUrl = `${origin}${next}${next.includes('?') ? '&' : '?'}auth=success`
-      return NextResponse.redirect(redirectUrl)
+      // Force immediate redirect without query params to avoid cache issues
+      return NextResponse.redirect(`${origin}${next}`)
     } else {
       console.log('❌ Auth exchange failed:', error?.message)
     }

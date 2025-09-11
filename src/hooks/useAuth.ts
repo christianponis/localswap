@@ -31,21 +31,62 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true
+    let initialLoadComplete = false
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id, session.user.email)
+    // Immediate fallback - set loading false after 100ms if nothing happens
+    const quickTimeout = setTimeout(() => {
+      if (mounted && !initialLoadComplete) {
+        console.log('⚡ Quick loading fallback')
+        setLoading(false)
+        initialLoadComplete = true
       }
-      setLoading(false)
-    })
+    }, 100)
+
+    // Force loading to false after 3 seconds max
+    const loadingTimeout = setTimeout(() => {
+      if (mounted && !initialLoadComplete) {
+        console.log('⏰ Auth loading timeout, forcing completion')
+        setLoading(false)
+        initialLoadComplete = true
+      }
+    }, 3000)
+
+    // Get initial session with timeout
+    const sessionPromise = Promise.race([
+      supabase.auth.getSession(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout')), 5000)
+      )
+    ])
+
+    sessionPromise
+      .then(({ data: { session } }) => {
+        if (!mounted || initialLoadComplete) return
+        console.log('✅ Initial session check:', session?.user?.email || 'No user')
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchProfile(session.user.id, session.user.email)
+        }
+        setLoading(false)
+        initialLoadComplete = true
+        clearTimeout(quickTimeout)
+        clearTimeout(loadingTimeout)
+      })
+      .catch(error => {
+        if (!mounted || initialLoadComplete) return
+        console.log('⚠️ Session check failed:', error.message)
+        setLoading(false)
+        initialLoadComplete = true
+        clearTimeout(quickTimeout)
+        clearTimeout(loadingTimeout)
+      })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
+        
+        console.log('🔄 Auth event:', event, session?.user?.email || 'No user')
         
         if (event === 'SIGNED_OUT' || !session) {
           clearCorruptedAuth()
@@ -53,15 +94,26 @@ export function useAuth() {
           setProfile(null)
         } else if (session?.user) {
           setUser(session.user)
-          await fetchProfile(session.user.id, session.user.email)
+          try {
+            await fetchProfile(session.user.id, session.user.email)
+          } catch (error) {
+            console.error('Profile fetch error:', error)
+          }
         }
         
-        setLoading(false)
+        if (!initialLoadComplete) {
+          setLoading(false)
+          initialLoadComplete = true
+          clearTimeout(quickTimeout)
+          clearTimeout(loadingTimeout)
+        }
       }
     )
 
     return () => {
       mounted = false
+      clearTimeout(quickTimeout)
+      clearTimeout(loadingTimeout)
       subscription.unsubscribe()
     }
   }, [])
