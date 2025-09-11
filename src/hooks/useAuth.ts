@@ -15,21 +15,30 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true
 
-    // Get initial session
+    // Get initial session  
     const getSession = async () => {
       try {
         console.log('🔍 Getting initial session...')
         
-        // Add a timeout to the session call
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
+        // First try to get session without timeout (to not lose existing sessions)
+        let sessionResult
+        try {
+          sessionResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Session timeout')), 3000)
+            )
+          ]) as any
+        } catch (timeoutError) {
+          console.log('⏰ Session call timed out, but continuing to listen for auth changes...')
+          // Don't return here - let the auth state listener handle it
+          if (mounted) {
+            setLoading(false)
+          }
+          return
+        }
         
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any
+        const { data: { session }, error } = sessionResult
         
         if (error) {
           console.error('❌ Session error:', error)
@@ -51,11 +60,8 @@ export function useAuth() {
         setLoading(false)
       } catch (error) {
         console.error('❌ Error in getSession:', error)
-        // Still complete the loading even if session fails
         if (mounted) {
           console.log('🔄 Setting loading to false despite error')
-          setUser(null)
-          setProfile(null)
           setLoading(false)
         }
       }
@@ -79,16 +85,22 @@ export function useAuth() {
         if (!mounted) return
         
         console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user')
+        
+        // Clear any existing timeouts since we got an auth event
+        clearTimeout(fallbackTimeout)
+        
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          console.log('✅ User found in auth change, fetching profile...')
           await fetchProfile(session.user.id, session.user.email)
         } else {
+          console.log('🚪 No user in auth change')
           setProfile(null)
         }
         
+        console.log('✅ Auth state change processed, setting loading to false')
         setLoading(false)
-        clearTimeout(fallbackTimeout)
       }
     )
 
