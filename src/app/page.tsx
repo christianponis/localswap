@@ -36,6 +36,23 @@ export default function HomePage() {
 
   useEffect(() => {
     requestLocation()
+    
+    // Check if redirected from successful auth
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('auth') === 'success') {
+        console.log('🎉 Auth success detected, removing URL param')
+        // Remove the auth=success parameter from URL
+        urlParams.delete('auth')
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
+        window.history.replaceState({}, '', newUrl)
+        
+        // Show success message
+        setTimeout(() => {
+          showSuccess('Login riuscito!', 'Benvenuto su LocalSwap')
+        }, 1000)
+      }
+    }
   }, [])
 
   useEffect(() => {

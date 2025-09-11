@@ -107,14 +107,28 @@ export function useAuth() {
       
       console.log('🔍 Background session check:', session?.user?.email || 'No user', error?.message || 'No error')
       
-      if (session?.user && session.user !== user) {
-        console.log('📝 Background session found different user, updating...')
+      if (session?.user) {
+        console.log('📝 Background session found user, updating state...')
         setUser(session.user)
         fetchProfile(session.user.id, session.user.email).catch(console.error)
+      } else if (!user) {
+        console.log('🚪 No session found in background check')
       }
     }).catch(error => {
       console.log('🔍 Background session check failed:', error.message)
     })
+    
+    // Additional session check after a short delay (for auth callback scenarios)
+    setTimeout(() => {
+      if (!mounted) return
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user && !user) {
+          console.log('🔄 Delayed session check found user:', session.user.email)
+          setUser(session.user)
+          fetchProfile(session.user.id, session.user.email).catch(console.error)
+        }
+      }).catch(console.error)
+    }, 2000)
 
     return () => {
       mounted = false
