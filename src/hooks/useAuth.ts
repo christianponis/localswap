@@ -19,7 +19,17 @@ export function useAuth() {
     const getSession = async () => {
       try {
         console.log('🔍 Getting initial session...')
-        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        // Add a timeout to the session call
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any
         
         if (error) {
           console.error('❌ Session error:', error)
@@ -31,26 +41,35 @@ export function useAuth() {
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          console.log('📝 Found user, fetching profile...')
           await fetchProfile(session.user.id, session.user.email)
+        } else {
+          console.log('🚪 No user found')
         }
         
         console.log('✅ Initial session loaded, setting loading to false')
         setLoading(false)
       } catch (error) {
         console.error('❌ Error in getSession:', error)
+        // Still complete the loading even if session fails
         if (mounted) {
+          console.log('🔄 Setting loading to false despite error')
+          setUser(null)
+          setProfile(null)
           setLoading(false)
         }
       }
     }
 
-    // Set a timeout fallback in case auth never resolves
+    // Set a shorter timeout fallback as a safety net
     const fallbackTimeout = setTimeout(() => {
-      if (mounted) {
+      if (mounted && loading) {
         console.log('⏰ Auth timeout fallback triggered')
+        setUser(null)
+        setProfile(null)
         setLoading(false)
       }
-    }, 5000) // 5 second fallback
+    }, 4000) // 4 second fallback
 
     getSession()
 
