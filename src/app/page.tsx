@@ -1,103 +1,378 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useEffect } from 'react'
+import { formatDistance, formatTimeAgo } from '@/lib/utils'
+import { APP_CONFIG, CATEGORIES, ITEM_TYPES } from '@/lib/constants'
+import { Plus, MapPin, User, LogOut } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { createClient } from '@/lib/supabase/client'
+import { LocalSwapLogo } from '@/components/LocalSwapLogo'
+import Link from 'next/link'
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function HomePage() {
+  const { user, profile, loading: authLoading, signOut } = useAuth()
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
+  const [items, setItems] = useState<Array<{
+    id: string
+    title: string
+    description: string
+    category: string
+    type: string
+    price?: number
+    distance_meters: number
+    created_at: string
+    username: string
+    avatar_url?: string
+  }>>([])
+  const [loading, setLoading] = useState(true)
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  
+  const supabase = createClient()
+
+  useEffect(() => {
+    requestLocation()
+  }, [])
+
+  useEffect(() => {
+    if (location) {
+      fetchNearbyItems()
+    }
+  }, [location, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('❌ Geolocalizzazione non supportata')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
+        setLocationStatus('✅ Posizione rilevata')
+      },
+      (error) => {
+        console.warn('Geolocalizzazione non disponibile, usando posizione di demo')
+        setLocationStatus('📍 Usando posizione di demo')
+        // Usa posizione default per demo
+        setLocation(APP_CONFIG.DEFAULT_LOCATION)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    )
+  }
+
+  const fetchNearbyItems = async () => {
+    if (!location) return
+
+    try {
+      setLoading(true)
+      
+      console.log('Fetching items for location:', location)
+      
+      // Temporarily fetch all items to debug the issue
+      const { data: allItems, error: fetchError } = await supabase
+        .from('items')
+        .select(`
+          id,
+          title,
+          description,
+          category,
+          type,
+          price,
+          currency,
+          address_hint,
+          status,
+          created_at,
+          user_id
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      console.log('Fetched items:', allItems)
+      console.log('Fetch error:', fetchError)
+
+      if (fetchError) {
+        console.warn('Database error, usando dati di demo:', fetchError)
+        setItems(getMockItems())
+      } else if (allItems && allItems.length > 0) {
+        // Format items to match expected structure
+        const formattedItems = allItems.map(item => ({
+          ...item,
+          distance_meters: 100, // Fake distance for now
+          username: 'Utente', // We'll fetch username separately later
+          avatar_url: null
+        }))
+        setItems(formattedItems)
+      } else {
+        console.log('No real items found, using mock data')
+        setItems(getMockItems())
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      setItems(getMockItems())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getMockItems = () => [
+    {
+      id: '1',
+      title: 'Trapano Bosch',
+      description: 'Trapano elettrico perfetto stato, lo presto per qualche ora',
+      category: 'casa',
+      type: 'presto',
+      price: null,
+      distance_meters: 150,
+      created_at: new Date(Date.now() - 1800000).toISOString(),
+      username: 'mario_92',
+      avatar_url: null,
+    },
+    {
+      id: '2',
+      title: 'Libro "Atomic Habits"',
+      description: 'Finito di leggere, scambio con altro libro di crescita personale',
+      category: 'libri',
+      type: 'scambio',
+      price: null,
+      distance_meters: 280,
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      username: 'reading_lover',
+      avatar_url: null,
+    },
+    {
+      id: '3',
+      title: 'iPhone 12 usato',
+      description: 'Ottime condizioni, passo a iPhone 15. Batteria 89%',
+      category: 'elettronica',
+      type: 'vendo',
+      price: 450,
+      distance_meters: 420,
+      created_at: new Date(Date.now() - 7200000).toISOString(),
+      username: 'tech_guru',
+      avatar_url: null,
+    },
+  ]
+
+  const filteredItems = items.filter(item => {
+    const categoryMatch = categoryFilter === 'all' || item.category === categoryFilter
+    const typeMatch = typeFilter === 'all' || item.type === typeFilter
+    return categoryMatch && typeMatch
+  })
+
+  const getTypeInfo = (type: string) => {
+    return ITEM_TYPES.find(t => t.value === type) || ITEM_TYPES[0]
+  }
+
+  const getCategoryInfo = (category: string) => {
+    return CATEGORIES.find(c => c.value === category) || CATEGORIES[0]
+  }
+
+  if (authLoading) {
+    return (
+      <div className="app-container">
+        <div className="loading">
+          <div className="empty-icon">🏠</div>
+          <div className="empty-title">Caricamento LocalSwap...</div>
         </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="app-container">
+      {/* Header */}
+      <div className="header">
+        <div className="header-content">
+          <div className="header-top">
+            <LocalSwapLogo size={36} />
+          
+            {user ? (
+              <div className="auth-section">
+                <span className="username">
+                  Ciao {profile?.username || user.email?.split('@')[0]}!
+                </span>
+                <button
+                  onClick={signOut}
+                  className="logout-btn"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <Link href="/auth/login" className="login-btn">
+                <User size={16} />
+                Accedi
+              </Link>
+            )}
+          </div>
+          
+          <div className="location-status">
+            <MapPin size={16} />
+            <span>{locationStatus}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="main">
+        {/* Add Item Button */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          {user ? (
+            <Link href="/add-item">
+              <button className="primary-btn">
+                <Plus size={20} />
+                Aggiungi oggetto
+              </button>
+            </Link>
+          ) : (
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Link href="/auth/login">
+                <button className="primary-btn">
+                  <User size={20} />
+                  Accedi per aggiungere
+                </button>
+              </Link>
+              <button 
+                onClick={() => setItems(getMockItems())}
+                className="demo-btn"
+              >
+                🚀 Modalità Demo
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="filters">
+          <select 
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">Tutte le categorie</option>
+            {CATEGORIES.map(cat => (
+              <option key={cat.value} value={cat.value}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+          <select 
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">Tutti i tipi</option>
+            {ITEM_TYPES.map(type => (
+              <option key={type.value} value={type.value}>
+                {type.emoji} {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Items List */}
+        <div className="items-grid">
+          {loading ? (
+            <div className="loading">
+              <div className="loading-skeleton skeleton-1"></div>
+              <div className="loading-skeleton skeleton-2"></div>
+              <div className="loading-skeleton skeleton-3"></div>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🔍</div>
+              <h3 className="empty-title">
+                Nessun oggetto nelle vicinanze
+              </h3>
+              <p className="empty-description">
+                Non ci sono oggetti nel raggio di 500m dalla tua posizione
+              </p>
+              {!user && (
+                <Link href="/auth/login" className="empty-link">
+                  Accedi per vedere tutti gli oggetti →
+                </Link>
+              )}
+            </div>
+          ) : (
+            filteredItems.map((item, index) => {
+              const typeInfo = getTypeInfo(item.type)
+              const categoryInfo = getCategoryInfo(item.category)
+              
+              return (
+                <div 
+                  key={item.id} 
+                  className="item-card"
+                  style={{ 
+                    animationDelay: `${index * 100}ms`
+                  }}
+                >
+                  <div className="item-header">
+                    <h3 className="item-title">
+                      {item.title}
+                    </h3>
+                    <div className="distance-badge">
+                      {formatDistance(item.distance_meters)}
+                    </div>
+                  </div>
+                  
+                  <div className={`type-badge type-${item.type}`}>
+                    <span>{typeInfo.emoji}</span>
+                    {typeInfo.label}
+                  </div>
+                  
+                  <p className="item-description">
+                    {item.description}
+                  </p>
+                  
+                  {item.price && (
+                    <div className="item-price">
+                      €{item.price}
+                    </div>
+                  )}
+                  
+                  <div className="item-footer">
+                    <div className="category-info">
+                      <span>{categoryInfo.emoji}</span>
+                      <span>{categoryInfo.label}</span>
+                    </div>
+                    <div>
+                      {formatTimeAgo(item.created_at)}
+                    </div>
+                  </div>
+                  
+                  {item.username && (
+                    <div className="item-username">
+                      da <span className="username-text">@{item.username}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {location && (
+          <div className="location-info">
+            <div className="location-header">
+              <MapPin size={16} style={{ color: '#10b981' }} />
+              <span>Raggio ricerca: {APP_CONFIG.MAX_RADIUS_METERS}m</span>
+            </div>
+            <div className="location-coords">
+              {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
+            </div>
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }
