@@ -12,7 +12,7 @@ import { NotificationPanel } from '@/components/NotificationPanel'
 import Link from 'next/link'
 
 export default function HomePage() {
-  const { user, profile, loading: authLoading, signOut } = useAuth()
+  const { user, profile, loading: authLoading, signOut, clearCorruptedAuth } = useAuth()
   const { showSuccess, showInfo, requestPermission, permission } = useNotifications()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
@@ -244,10 +244,22 @@ export default function HomePage() {
                 </button>
               </div>
             ) : (
-              <Link href="/auth/login" className="login-btn">
-                <User size={16} />
-                Accedi
-              </Link>
+              <div className="auth-section">
+                <button
+                  onClick={() => {
+                    clearCorruptedAuth()
+                    showInfo('Cookies puliti', 'Cache di autenticazione pulita. Riprova il login.')
+                  }}
+                  className="debug-btn"
+                  title="Pulisci cache corrotta se il login non funziona"
+                >
+                  🧹
+                </button>
+                <Link href="/auth/login" className="login-btn">
+                  <User size={16} />
+                  Accedi
+                </Link>
+              </div>
             )}
           </div>
           

@@ -12,6 +12,28 @@ export function useAuth() {
   
   const supabase = createClient()
 
+  // Function to clear corrupted auth data
+  const clearAuthData = () => {
+    console.log('🧹 Clearing potentially corrupted auth data...')
+    // Clear localStorage
+    if (typeof window !== 'undefined') {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key)
+          console.log('🗑️ Removed localStorage:', key)
+        }
+      })
+      
+      // Clear sessionStorage
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          sessionStorage.removeItem(key)
+          console.log('🗑️ Removed sessionStorage:', key)
+        }
+      })
+    }
+  }
+
   useEffect(() => {
     let mounted = true
     let initialLoadComplete = false
@@ -35,10 +57,16 @@ export function useAuth() {
         
         console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user')
         
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
+        // Handle sign out or auth errors by clearing corrupted data
+        if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+          console.log('🚪 Auth signed out or token refresh failed, clearing data...')
+          clearAuthData()
+          setUser(null)
+          setProfile(null)
+        } else if (session?.user) {
           console.log('✅ User found in auth change, fetching profile...')
+          setUser(session.user)
+          
           try {
             await fetchProfile(session.user.id, session.user.email)
           } catch (error) {
@@ -55,6 +83,7 @@ export function useAuth() {
           }
         } else {
           console.log('🚪 No user in auth change')
+          setUser(null)
           setProfile(null)
         }
         
@@ -178,7 +207,22 @@ export function useAuth() {
   }
 
   const signOut = async () => {
+    console.log('🚪 Signing out user...')
+    clearAuthData()
     await supabase.auth.signOut()
+  }
+
+  const clearCorruptedAuth = () => {
+    console.log('🧹 Manual auth cleanup requested')
+    clearAuthData()
+    setUser(null)
+    setProfile(null)
+    // Trigger a refresh of the auth state
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        console.log('✅ Auth cleared successfully')
+      }
+    })
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
@@ -215,6 +259,7 @@ export function useAuth() {
     loading,
     signOut,
     updateProfile,
+    clearCorruptedAuth,
     isAuthenticated: !!user
   }
 }

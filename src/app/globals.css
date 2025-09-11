@@ -203,6 +203,24 @@ body::before {
   transform: translateY(-1px);
 }
 
+.debug-btn {
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.2);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  border-radius: 8px;
+  color: #f59e0b;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  margin-right: 8px;
+}
+
+.debug-btn:hover {
+  background: rgba(255, 193, 7, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
 .location-status {
   display: flex;
   align-items: center;
