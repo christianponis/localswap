@@ -14,99 +14,75 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true
+    let initialLoadComplete = false
 
-    // Get initial session  
-    const getSession = async () => {
-      try {
-        console.log('🔍 Getting initial session...')
-        
-        // First try to get session without timeout (to not lose existing sessions)
-        let sessionResult
-        try {
-          sessionResult = await Promise.race([
-            supabase.auth.getSession(),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Session timeout')), 3000)
-            )
-          ]) as any
-        } catch (timeoutError) {
-          console.log('⏰ Session call timed out, but continuing to listen for auth changes...')
-          // Don't return here - let the auth state listener handle it
-          if (mounted) {
-            setLoading(false)
-          }
-          return
-        }
-        
-        const { data: { session }, error } = sessionResult
-        
-        if (error) {
-          console.error('❌ Session error:', error)
-        }
-        
-        if (!mounted) return
-        
-        console.log('👤 Session user:', session?.user?.email || 'No user')
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
-          console.log('📝 Found user, fetching profile...')
-          await fetchProfile(session.user.id, session.user.email)
-        } else {
-          console.log('🚪 No user found')
-        }
-        
-        console.log('✅ Initial session loaded, setting loading to false')
+    // Simple immediate loading completion with auth listener only
+    console.log('🔄 Setting up auth listener only approach...')
+    
+    // Set loading to false immediately and rely on auth state changes
+    setTimeout(() => {
+      if (mounted && !initialLoadComplete) {
+        console.log('⚡ Quick load: setting loading to false immediately')
         setLoading(false)
-      } catch (error) {
-        console.error('❌ Error in getSession:', error)
-        if (mounted) {
-          console.log('🔄 Setting loading to false despite error')
-          setLoading(false)
-        }
+        initialLoadComplete = true
       }
-    }
+    }, 100)
 
-    // Set a shorter timeout fallback as a safety net
-    const fallbackTimeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.log('⏰ Auth timeout fallback triggered')
-        setUser(null)
-        setProfile(null)
-        setLoading(false)
-      }
-    }, 4000) // 4 second fallback
-
-    getSession()
-
-    // Listen for auth changes
+    // Listen for auth changes - this is the primary way to detect auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return
         
         console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user')
         
-        // Clear any existing timeouts since we got an auth event
-        clearTimeout(fallbackTimeout)
-        
         setUser(session?.user ?? null)
         
         if (session?.user) {
           console.log('✅ User found in auth change, fetching profile...')
-          await fetchProfile(session.user.id, session.user.email)
+          try {
+            await fetchProfile(session.user.id, session.user.email)
+          } catch (error) {
+            console.error('❌ Profile fetch error:', error)
+            // Create basic profile even if fetch fails
+            const basicProfile = {
+              id: session.user.id,
+              username: session.user.email?.split('@')[0] || 'utente',
+              email: session.user.email || '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+            setProfile(basicProfile as any)
+          }
         } else {
           console.log('🚪 No user in auth change')
           setProfile(null)
         }
         
-        console.log('✅ Auth state change processed, setting loading to false')
-        setLoading(false)
+        if (!initialLoadComplete) {
+          console.log('✅ Auth event completed initial loading')
+          setLoading(false)
+          initialLoadComplete = true
+        }
       }
     )
 
+    // Try to get initial session in background (no timeout, no blocking)
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!mounted) return
+      
+      console.log('🔍 Background session check:', session?.user?.email || 'No user', error?.message || 'No error')
+      
+      if (session?.user && session.user !== user) {
+        console.log('📝 Background session found different user, updating...')
+        setUser(session.user)
+        fetchProfile(session.user.id, session.user.email).catch(console.error)
+      }
+    }).catch(error => {
+      console.log('🔍 Background session check failed:', error.message)
+    })
+
     return () => {
       mounted = false
-      clearTimeout(fallbackTimeout)
       subscription.unsubscribe()
     }
   }, [])
