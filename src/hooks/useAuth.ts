@@ -13,23 +13,53 @@ export function useAuth() {
   const supabase = createClient()
 
   useEffect(() => {
+    let mounted = true
+
     // Get initial session
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email)
+      try {
+        console.log('🔍 Getting initial session...')
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('❌ Session error:', error)
+        }
+        
+        if (!mounted) return
+        
+        console.log('👤 Session user:', session?.user?.email || 'No user')
+        setUser(session?.user ?? null)
+        
+        if (session?.user) {
+          await fetchProfile(session.user.id, session.user.email)
+        }
+        
+        console.log('✅ Initial session loaded, setting loading to false')
+        setLoading(false)
+      } catch (error) {
+        console.error('❌ Error in getSession:', error)
+        if (mounted) {
+          setLoading(false)
+        }
       }
-      
-      setLoading(false)
     }
+
+    // Set a timeout fallback in case auth never resolves
+    const fallbackTimeout = setTimeout(() => {
+      if (mounted) {
+        console.log('⏰ Auth timeout fallback triggered')
+        setLoading(false)
+      }
+    }, 5000) // 5 second fallback
 
     getSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return
+        
+        console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user')
         setUser(session?.user ?? null)
         
         if (session?.user) {
@@ -39,14 +69,20 @@ export function useAuth() {
         }
         
         setLoading(false)
+        clearTimeout(fallbackTimeout)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      clearTimeout(fallbackTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string, userEmail?: string) => {
     try {
+      console.log('👤 Fetching profile for user:', userId, userEmail)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -54,9 +90,10 @@ export function useAuth() {
         .single()
 
       if (error) {
+        console.log('🔍 Profile fetch error:', error.code, error.message)
         // If profiles table doesn't exist or no profile found, create a basic profile from user data
         if (error.code === 'PGRST116' || error.code === '42P01') {
-          console.log('No profile found, using basic user info')
+          console.log('📝 No profile found, creating basic user info')
           // Create a basic profile from user email
           const basicProfile = {
             id: userId,
@@ -65,10 +102,11 @@ export function useAuth() {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }
+          console.log('✅ Basic profile created:', basicProfile)
           setProfile(basicProfile as any)
           return
         }
-        console.error('Error fetching profile:', error)
+        console.error('❌ Profile error, creating fallback:', error)
         // Still set a basic profile to not block the app
         const basicProfile = {
           id: userId,
@@ -77,6 +115,7 @@ export function useAuth() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
+        console.log('✅ Fallback profile created:', basicProfile)
         setProfile(basicProfile as any)
         return
       }
