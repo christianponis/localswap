@@ -1,97 +1,75 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Phone, Mail, ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
+import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
+import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { LocalSwapLogo } from '@/components/LocalSwapLogo'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
-function LoginForm() {
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [phoneNumber, setPhoneNumber] = useState('')
+export default function FirebaseLoginPage() {
   const [email, setEmail] = useState('')
-  const [mode, setMode] = useState<'phone' | 'email'>('email')
+  const [password, setPassword] = useState('')
+  const [isRegister, setIsRegister] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [message, setMessage] = useState('')
   
+  const { user, loading, login, register, resetPassword } = useFirebaseAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const supabase = createClient()
 
-  // Check for error messages from URL
-  useEffect(() => {
-    const error = searchParams.get('error')
-    if (error === 'auth_failed') {
-      setMessage('Errore durante l\'autenticazione. Riprova.')
-    }
-  }, [searchParams])
+  // Redirect if already logged in
+  if (user && !loading) {
+    router.push('/')
+    return null
+  }
 
-  const handlePhoneLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!phoneNumber) return
+    if (!email || !password) return
 
-    setLoading(true)
     setMessage('')
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: phoneNumber,
-        options: {
-          shouldCreateUser: true,
-        }
-      })
-
-      if (error) {
-        console.error('Auth error:', error)
-        if (error.message.includes('Failed to fetch')) {
-          setMessage('Servizio temporaneamente non disponibile. Per ora usa l\'accesso via email.')
-        } else {
-          setMessage(error.message)
-        }
-        setLoading(false)
-      } else {
-        // Redirect to verification page with phone number
-        router.push(`/auth/verify?phone=${encodeURIComponent(phoneNumber)}`)
-      }
-    } catch (err) {
-      console.error('Network error:', err)
-      setMessage('Connessione non disponibile. Per ora usa l\'accesso via email.')
-      setLoading(false)
+    
+    const result = isRegister 
+      ? await register(email, password, email.split('@')[0])
+      : await login(email, password)
+    
+    if (result.success) {
+      setMessage(isRegister ? 'Account creato con successo!' : 'Login effettuato!')
+      // Firebase will automatically redirect via the auth state change
+    } else {
+      setMessage(result.error || 'Errore durante l\'autenticazione')
     }
   }
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email) return
-
-    setLoading(true)
-    setMessage('')
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
-      })
-
-      if (error) {
-        console.error('Auth error:', error)
-        if (error.message.includes('Failed to fetch')) {
-          setMessage('Servizio temporaneamente non disponibile. Riprova più tardi.')
-        } else {
-          setMessage(error.message)
-        }
-      } else {
-        setMessage('Link di accesso inviato! Controlla la tua email.')
-      }
-    } catch (err) {
-      console.error('Network error:', err)
-      setMessage('Connessione non disponibile. Riprova più tardi.')
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setMessage('Inserisci la tua email per recuperare la password')
+      return
     }
     
-    setLoading(false)
+    const result = await resetPassword(email)
+    if (result.success) {
+      setMessage('Email di recupero inviata! Controlla la tua posta.')
+    } else {
+      setMessage(result.error || 'Errore durante l\'invio dell\'email')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="login-container">
+        <div className="login-content">
+          <div className="login-card">
+            <div className="login-card-header">
+              <div className="login-logo">
+                <LocalSwapLogo size={48} />
+              </div>
+              <h1 className="login-title">Caricamento...</h1>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -109,104 +87,121 @@ function LoginForm() {
             <div className="login-logo">
               <LocalSwapLogo size={48} />
             </div>
-            <h1 className="login-title">Accedi a LocalSwap</h1>
+            <h1 className="login-title">
+              {isRegister ? 'Registrati su LocalSwap' : 'Accedi a LocalSwap'}
+            </h1>
             <p className="login-subtitle">
-              Accedi per iniziare a scambiare nel tuo vicinato
+              {isRegister 
+                ? 'Crea il tuo account per iniziare a scambiare' 
+                : 'Accedi per iniziare a scambiare nel tuo vicinato'
+              }
             </p>
           </div>
           
           <div className="login-card-content">
-            {/* Mode Toggle */}
+            {/* Toggle Login/Register */}
             <div className="mode-toggle">
               <button
-                onClick={() => setMode('phone')}
-                className={`mode-btn ${mode === 'phone' ? 'mode-btn-active' : ''}`}
-              >
-                <Phone size={16} />
-                Telefono
-              </button>
-              <button
-                onClick={() => setMode('email')}
-                className={`mode-btn ${mode === 'email' ? 'mode-btn-active' : ''}`}
+                onClick={() => setIsRegister(false)}
+                className={`mode-btn ${!isRegister ? 'mode-btn-active' : ''}`}
               >
                 <Mail size={16} />
-                Email
+                Accedi
+              </button>
+              <button
+                onClick={() => setIsRegister(true)}
+                className={`mode-btn ${isRegister ? 'mode-btn-active' : ''}`}
+              >
+                <Lock size={16} />
+                Registrati
               </button>
             </div>
 
-            {/* Phone Login */}
-            {mode === 'phone' && (
-              <form onSubmit={handlePhoneLogin} className="login-form">
-                <div className="form-group">
-                  <label htmlFor="phone" className="form-label">
-                    Numero di telefono
-                  </label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    placeholder="+39 123 456 7890"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="form-input"
-                    required
-                  />
-                  <p className="form-hint">
-                    Riceverai un SMS con il codice di accesso
-                  </p>
-                </div>
-                
-                <button 
-                  type="submit" 
-                  disabled={loading || !phoneNumber}
-                  className={`submit-btn interactive ${phoneNumber ? 'submit-btn-ready' : ''}`}
-                >
-                  {loading ? 'Invio in corso...' : phoneNumber ? '📱 Invia codice SMS' : 'Inserisci numero di telefono'}
-                </button>
-              </form>
-            )}
+            {/* Login/Register Form */}
+            <form onSubmit={handleSubmit} className="login-form">
+              <div className="form-group">
+                <label htmlFor="email" className="form-label">
+                  Indirizzo email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="tuo@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
 
-            {/* Email Login */}
-            {mode === 'email' && (
-              <form onSubmit={handleEmailLogin} className="login-form">
-                <div className="form-group">
-                  <label htmlFor="email" className="form-label">
-                    Indirizzo email
-                  </label>
+              <div className="form-group">
+                <label htmlFor="password" className="form-label">
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
                   <input
-                    id="email"
-                    type="email"
-                    placeholder="tuo@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={isRegister ? 'Crea una password (min 6 caratteri)' : 'La tua password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className="form-input"
+                    style={{ paddingRight: '3rem' }}
                     required
+                    minLength={6}
                   />
-                  <p className="form-hint">
-                    Riceverai un link magico per accedere
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#666'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-                
-                <button 
-                  type="submit" 
-                  disabled={loading || !email}
-                  className={`submit-btn interactive ${email ? 'submit-btn-ready' : ''}`}
+              </div>
+              
+              <button 
+                type="submit" 
+                disabled={loading || !email || !password}
+                className={`submit-btn ${email && password ? 'submit-btn-ready' : ''}`}
+              >
+                {loading ? 'Attendere...' : isRegister ? '🚀 Crea Account' : '🔐 Accedi'}
+              </button>
+            </form>
+
+            {/* Password Reset */}
+            {!isRegister && (
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <button
+                  onClick={handlePasswordReset}
+                  className="terms-link"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                 >
-                  {loading ? 'Invio in corso...' : email ? '✉️ Invia link di accesso' : 'Inserisci email'}
+                  Password dimenticata?
                 </button>
-              </form>
+              </div>
             )}
 
             {/* Message Display */}
             {message && (
               <div className={`message ${
-                message.includes('inviato') ? 'message-success' : 'message-error'
+                message.includes('successo') || message.includes('inviata') ? 'message-success' : 'message-error'
               }`}>
                 {message}
               </div>
             )}
 
             <div className="terms">
-              Accedendo accetti i nostri{' '}
+              {isRegister ? 'Registrandoti' : 'Accedendo'} accetti i nostri{' '}
               <a href="#" className="terms-link">
                 Termini di Servizio
               </a>{' '}
@@ -219,24 +214,5 @@ function LoginForm() {
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="login-container">
-      <div className="login-content">
-        <div className="login-card">
-          <div className="login-card-header">
-            <div className="login-logo">
-              <LocalSwapLogo size={48} />
-            </div>
-            <h1 className="login-title">Caricamento...</h1>
-          </div>
-        </div>
-      </div>
-    </div>}>
-      <LoginForm />
-    </Suspense>
   )
 }

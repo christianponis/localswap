@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { formatDistance, formatTimeAgo } from '@/lib/utils'
 import { APP_CONFIG, CATEGORIES, ITEM_TYPES } from '@/lib/constants'
 import { Plus, MapPin, User, LogOut } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { createClient } from '@/lib/supabase/client'
 import { LocalSwapLogo } from '@/components/LocalSwapLogo'
@@ -12,7 +12,7 @@ import { NotificationPanel } from '@/components/NotificationPanel'
 import Link from 'next/link'
 
 export default function HomePage() {
-  const { user, profile, loading: authLoading, signOut } = useAuth()
+  const { user, loading: authLoading, logout } = useFirebaseAuth()
   const { showSuccess, showInfo, requestPermission, permission } = useNotifications()
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
   const [locationStatus, setLocationStatus] = useState('Rilevamento posizione...')
@@ -47,23 +47,10 @@ export default function HomePage() {
   // Force refetch items when auth state changes (login/logout)
   useEffect(() => {
     if (!authLoading && location) {
-      console.log('🔄 Auth state changed, refetching items...')
+      console.log('🔥 Firebase auth state changed, refetching items...')
       fetchNearbyItems()
     }
   }, [user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
-  
-  // Listen for successful authentication to immediately refresh items
-  useEffect(() => {
-    const handleAuthSuccess = () => {
-      console.log('🎉 Auth success event received, refreshing items')
-      if (location) {
-        fetchNearbyItems()
-      }
-    }
-    
-    window.addEventListener('auth-success', handleAuthSuccess)
-    return () => window.removeEventListener('auth-success', handleAuthSuccess)
-  }, [location]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show welcome notification for authenticated users
   useEffect(() => {
@@ -255,10 +242,10 @@ export default function HomePage() {
               <div className="auth-section">
                 <NotificationPanel />
                 <span className="username">
-                  Ciao {profile?.username || user.email?.split('@')[0]}!
+                  Ciao {user.displayName || user.email?.split('@')[0]}!
                 </span>
                 <button
-                  onClick={signOut}
+                  onClick={logout}
                   className="logout-btn"
                 >
                   <LogOut size={16} />
