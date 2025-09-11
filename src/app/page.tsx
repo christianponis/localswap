@@ -339,6 +339,9 @@ export default function HomePage() {
           <div className="location-status" style={{ fontSize: '10px', opacity: 0.7, wordBreak: 'break-all' }}>
             💾 {storageStatus}
           </div>
+          <div className="location-status" style={{ fontSize: '10px', opacity: 0.7 }}>
+            🕐 Build: 2025-09-11 17:40 (Cache Test)
+          </div>
         </div>
       </div>
 
