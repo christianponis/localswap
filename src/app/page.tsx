@@ -42,7 +42,28 @@ export default function HomePage() {
     if (location) {
       fetchNearbyItems()
     }
-  }, [location, user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location, user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Force refetch items when auth state changes (login/logout)
+  useEffect(() => {
+    if (!authLoading && location) {
+      console.log('🔄 Auth state changed, refetching items...')
+      fetchNearbyItems()
+    }
+  }, [user, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Listen for successful authentication to immediately refresh items
+  useEffect(() => {
+    const handleAuthSuccess = () => {
+      console.log('🎉 Auth success event received, refreshing items')
+      if (location) {
+        fetchNearbyItems()
+      }
+    }
+    
+    window.addEventListener('auth-success', handleAuthSuccess)
+    return () => window.removeEventListener('auth-success', handleAuthSuccess)
+  }, [location]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show welcome notification for authenticated users
   useEffect(() => {

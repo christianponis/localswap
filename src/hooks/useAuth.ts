@@ -12,26 +12,48 @@ export function useAuth() {
   
   const supabase = createClient()
 
-  // Auto clear corrupted auth data on errors
+  // Aggressive clear of all browser data that might interfere
   const clearCorruptedAuth = () => {
     if (typeof window !== 'undefined') {
-      // Clear localStorage and sessionStorage
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-') || key.includes('supabase')) {
-          localStorage.removeItem(key)
+      try {
+        console.log('🧹 Aggressive cleanup: removing all potential interfering data')
+        
+        // Clear ALL localStorage (not just supabase)
+        localStorage.clear()
+        
+        // Clear ALL sessionStorage  
+        sessionStorage.clear()
+        
+        // Clear all cookies for this domain
+        document.cookie.split(";").forEach(function(c) { 
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;domain=" + window.location.hostname)
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/;domain=." + window.location.hostname)
+        })
+        
+        // Clear caches if available
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => {
+              caches.delete(name)
+            })
+          })
         }
-      })
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('sb-') || key.includes('supabase')) {
-          sessionStorage.removeItem(key)
-        }
-      })
+        
+        console.log('✅ Aggressive cleanup completed')
+      } catch (error) {
+        console.log('⚠️ Some cleanup operations failed:', error)
+      }
     }
   }
 
   useEffect(() => {
     let mounted = true
     let initialLoadComplete = false
+
+    // Aggressive storage cleanup on every app start for browser issues
+    console.log('🧹 Starting aggressive storage cleanup for browser compatibility')
+    clearCorruptedAuth()
 
     // Immediate fallback - set loading false after 100ms if nothing happens
     const quickTimeout = setTimeout(() => {
@@ -93,11 +115,16 @@ export function useAuth() {
           setUser(null)
           setProfile(null)
         } else if (session?.user) {
+          console.log('✅ User authenticated, updating state')
           setUser(session.user)
           try {
             await fetchProfile(session.user.id, session.user.email)
           } catch (error) {
             console.error('Profile fetch error:', error)
+          }
+          // Trigger a custom event to notify components of auth success
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-success'))
           }
         }
         
