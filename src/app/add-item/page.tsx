@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Euro, Clock, Tag, FileText, Camera } from 'lucide-react'
+import { Euro, Clock, Tag, FileText, Camera, MapPin } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { 
   APP_CONFIG, 
@@ -11,7 +11,6 @@ import {
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { ImageUpload } from '@/components/ImageUpload'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function AddItemPage() {
