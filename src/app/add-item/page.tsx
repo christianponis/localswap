@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, MapPin, Euro, Clock, Tag, FileText, Camera } from 'lucide-react'
-import { LocalSwapLogo } from '@/components/LocalSwapLogo'
+import { Euro, Clock, Tag, FileText, Camera } from 'lucide-react'
+import { Header } from '@/components/Header'
 import { 
-  CATEGORIES, ITEM_TYPES, APP_CONFIG, 
-  ITEM_KINDS, getCategoriesForKind, getTypesForKind,
-  OBJECT_CATEGORIES, SERVICE_CATEGORIES,
-  OBJECT_TYPES, SERVICE_TYPES
+  APP_CONFIG, 
+  ITEM_KINDS, getCategoriesForKind, getTypesForKind
 } from '@/lib/constants'
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -22,17 +20,30 @@ export default function AddItemPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [authInitialized, setAuthInitialized] = useState(false)
 
   // Debug auth status and redirect if not authenticated
   useEffect(() => {
-    console.log('AddItem Auth status:', { user: user?.uid, email: user?.email, authLoading })
+    // Mark auth as initialized once loading completes for the first time
+    if (!authLoading && !authInitialized) {
+      setAuthInitialized(true)
+    }
     
-    // Redirect to login if not authenticated and auth loading is complete
-    if (!authLoading && !user) {
-      console.log('User not authenticated, redirecting to login')
+    console.log('AddItem Auth status:', { 
+      user: user?.uid, 
+      email: user?.email, 
+      authLoading,
+      authInitialized,
+      hasUser: !!user,
+      timestamp: new Date().toISOString()
+    })
+    
+    // Only redirect if auth has been initialized and there's no user
+    if (authInitialized && !authLoading && !user) {
+      console.log('User not authenticated after initialization, redirecting to login')
       router.push('/auth/login?next=/add-item')
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, authInitialized, router])
   
   const [formData, setFormData] = useState({
     title: '',
@@ -64,7 +75,7 @@ export default function AddItemPage() {
           }))
           setLocationStatus('✅ Posizione rilevata')
         },
-        (error) => {
+        (_error) => {
           setFormData(prev => ({
             ...prev,
             ...APP_CONFIG.DEFAULT_LOCATION,
@@ -108,19 +119,18 @@ export default function AddItemPage() {
       const itemData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        kind: formData.kind,
         category: formData.category,
         type: formData.type,
         price: (formData.price && parseFloat(formData.price) > 0) ? parseFloat(formData.price) : null,
         currency: 'EUR',
-        location: `SRID=4326;POINT(${formData.location_lng} ${formData.location_lat})`,
+        location: `SRID=4326;POINT(${formData.location_lng} ${formData.location_lat})` as unknown,
         address_hint: formData.location_text,
-        images: formData.images,
+        image_urls: formData.kind === 'object' ? formData.images : [], // Only save images for objects
         user_id: user.uid,
         status: 'active'
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('items')
         .insert([itemData])
         .select()
@@ -146,12 +156,12 @@ export default function AddItemPage() {
           showError('Errore nella pubblicazione', errorMsg)
         }
       } else {
-        var itemKindLabel = formData.kind === 'object' ? 'Oggetto' : 'Servizio'
+        const actualKind = getKindFromCategory(formData.category) || formData.kind
+        const itemKindLabel = actualKind === 'object' ? 'Oggetto' : 'Servizio'
         setMessage(`${itemKindLabel} aggiunto con successo!`)
         console.log('Item created successfully:', data)
         
         // Show success notification
-        itemKindLabel = formData.kind === 'object' ? 'Oggetto' : 'Servizio'
         showSuccess(
           `${itemKindLabel} pubblicato!`,
           `"${formData.title}" è ora visibile ai tuoi vicini`,
@@ -185,6 +195,12 @@ export default function AddItemPage() {
     }
   }
 
+  // Helper function to determine if category is service or object
+  const getKindFromCategory = (category: string) => {
+    const serviceCategories = ['casa_servizi', 'giardinaggio', 'ripetizioni', 'trasporti', 'pulizie', 'pet_care', 'tech_support', 'altro_servizio']
+    return serviceCategories.includes(category) ? 'service' : 'object'
+  }
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
@@ -194,6 +210,8 @@ export default function AddItemPage() {
         updated.category = ''
         updated.type = ''
         updated.price = ''
+        // Reset images when switching between object and service
+        updated.images = []
       }
       
       return updated
@@ -206,7 +224,6 @@ export default function AddItemPage() {
   
   const selectedType = availableTypes.find(t => t.value === formData.type)
   const selectedCategory = availableCategories.find(c => c.value === formData.category)
-  const selectedKind = ITEM_KINDS.find(k => k.value === formData.kind)
 
   // Show loading while checking auth
   if (authLoading) {
@@ -220,8 +237,8 @@ export default function AddItemPage() {
     )
   }
 
-  // Show login prompt if not authenticated
-  if (!user) {
+  // Show login prompt if not authenticated (and auth is initialized)
+  if (authInitialized && !authLoading && !user) {
     return (
       <div className="app-container">
         <div className="loading">
@@ -237,22 +254,13 @@ export default function AddItemPage() {
 
   return (
     <div className="app-container">
-      {/* Header */}
-      <div className="header">
-        <div className="header-content">
-          <div className="header-top">
-            <LocalSwapLogo size={32} />
-            <Link href="/" className="back-link-header">
-              <ArrowLeft size={20} />
-            </Link>
-          </div>
-          
-          <div className="location-status">
-            <MapPin size={16} />
-            <span>{locationStatus}</span>
-          </div>
-        </div>
-      </div>
+      <Header 
+        user={user} 
+        locationStatus={locationStatus}
+        showLocation={true}
+        showBackButton={true}
+        className="enhanced-header"
+      />
 
       <main className="main">
         <div className="page-header">
@@ -292,18 +300,47 @@ export default function AddItemPage() {
             </div>
           </div>
 
-          {/* Images */}
-          <div className="form-group">
-            <label className="form-label">
-              <Camera size={16} />
-              {formData.kind === 'object' ? 'Foto dell\'oggetto' : 'Foto del servizio (opzionale)'}
-            </label>
-            <ImageUpload
-              onImagesChange={(urls) => setFormData({...formData, images: urls})}
-              maxImages={3}
-              existingImages={formData.images}
-            />
-          </div>
+          {/* Images - Only for objects */}
+          {formData.kind === 'object' && (
+            <div className="form-group">
+              <label className="form-label">
+                <Camera size={16} />
+                Foto dell'oggetto
+              </label>
+              <div className="image-upload-area">
+                <ImageUpload
+                  onImagesChange={(urls) => setFormData({...formData, images: urls})}
+                  maxImages={5}
+                  existingImages={formData.images}
+                />
+                <div className="upload-hint">
+                  <p>📸 Aggiungi fino a 5 foto del tuo oggetto</p>
+                  <p>Foto di buona qualità aumentano le possibilità di successo!</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Service Icon - Only for services */}
+          {formData.kind === 'service' && formData.category && (
+            <div className="form-group">
+              <label className="form-label">
+                <Tag size={16} />
+                Icona del servizio
+              </label>
+              <div className="service-icon-area">
+                <div className="service-icon">
+                  {(() => {
+                    const categoryInfo = availableCategories.find(c => c.value === formData.category)
+                    return categoryInfo ? categoryInfo.emoji : '🛠️'
+                  })()}
+                </div>
+                <p className="service-icon-hint">
+                  Icona automatica basata sulla categoria selezionata
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Title */}
           <div className="form-group">
@@ -385,8 +422,8 @@ export default function AddItemPage() {
           </div>
 
           {/* Price */}
-          {(formData.kind === 'object' && formData.type === 'vendo') || 
-           (formData.kind === 'service') ? (
+          {((formData.kind === 'object' && formData.type === 'vendo') || 
+           (formData.kind === 'service')) && (
             <div className="form-group">
               <label className="form-label">
                 <Euro size={16} />

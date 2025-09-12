@@ -3,19 +3,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   try {
-    // This middleware will run on API routes and protected pages
-    const supabase = await createClient()
+    // TEMPORARY: Disable middleware protection for add-item since we're using Firebase Auth
+    // The add-item page has its own client-side authentication protection
     
-    // Get the session from the request
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    // Protected routes that require authentication
+    // Protected routes that require authentication (excluding add-item for now)
     const protectedRoutes = [
       '/dashboard',
-      '/profile',
-      '/add-item',
+      '/profile', 
       '/messages',
       '/settings'
     ]
@@ -25,16 +19,18 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith(route)
     )
 
-    // If trying to access a protected route without being authenticated
-    if (isProtectedRoute && !user) {
-      const redirectUrl = new URL('/auth/login', request.url)
-      redirectUrl.searchParams.set('next', request.nextUrl.pathname)
-      return NextResponse.redirect(redirectUrl)
-    }
+    // For protected routes (not add-item), check Supabase auth
+    if (isProtectedRoute) {
+      const supabase = await createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-    // If authenticated and trying to access auth pages, redirect to home
-    if (user && request.nextUrl.pathname.startsWith('/auth/login')) {
-      return NextResponse.redirect(new URL('/', request.url))
+      if (!user) {
+        const redirectUrl = new URL('/auth/login', request.url)
+        redirectUrl.searchParams.set('next', request.nextUrl.pathname)
+        return NextResponse.redirect(redirectUrl)
+      }
     }
 
     return NextResponse.next()

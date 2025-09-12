@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { formatDistance, formatTimeAgo } from '@/lib/utils'
-import { APP_CONFIG, CATEGORIES, ITEM_TYPES } from '@/lib/constants'
-import { Plus, MapPin, User, LogOut } from 'lucide-react'
+import { APP_CONFIG, getAllCategories, getAllTypes, ITEM_KINDS } from '@/lib/constants'
+import { Plus, User, MapPin } from 'lucide-react'
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { createClient } from '@/lib/supabase/client'
-import { LocalSwapLogo } from '@/components/LocalSwapLogo'
-import { NotificationPanel } from '@/components/NotificationPanel'
+import { Header } from '@/components/Header'
 import Link from 'next/link'
 
 export default function HomePage() {
@@ -20,6 +19,7 @@ export default function HomePage() {
     id: string
     title: string
     description: string
+    kind: string
     category: string
     type: string
     price?: number
@@ -29,6 +29,7 @@ export default function HomePage() {
     avatar_url?: string
   }>>([])
   const [loading, setLoading] = useState(true)
+  const [kindFilter, setKindFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   
@@ -123,6 +124,7 @@ export default function HomePage() {
           id,
           title,
           description,
+          kind,
           category,
           type,
           price,
@@ -146,6 +148,7 @@ export default function HomePage() {
         // Format items to match expected structure
         const formattedItems = allItems.map(item => ({
           ...item,
+          kind: item.kind || 'object', // Fallback to 'object' if kind is missing
           distance_meters: 100, // Fake distance for now
           username: 'Utente', // We'll fetch username separately later
           avatar_url: null
@@ -168,6 +171,7 @@ export default function HomePage() {
       id: '1',
       title: 'Trapano Bosch',
       description: 'Trapano elettrico perfetto stato, lo presto per qualche ora',
+      kind: 'object',
       category: 'casa',
       type: 'presto',
       price: null,
@@ -178,20 +182,22 @@ export default function HomePage() {
     },
     {
       id: '2',
-      title: 'Libro "Atomic Habits"',
-      description: 'Finito di leggere, scambio con altro libro di crescita personale',
-      category: 'libri',
-      type: 'scambio',
-      price: null,
+      title: 'Ripetizioni Matematica',
+      description: 'Laureato in Ingegneria, disponibile per ripetizioni di matematica e fisica',
+      kind: 'service',
+      category: 'ripetizioni',
+      type: 'offro',
+      price: 25,
       distance_meters: 280,
       created_at: new Date(Date.now() - 3600000).toISOString(),
-      username: 'reading_lover',
+      username: 'prof_marco',
       avatar_url: null,
     },
     {
       id: '3',
       title: 'iPhone 12 usato',
       description: 'Ottime condizioni, passo a iPhone 15. Batteria 89%',
+      kind: 'object',
       category: 'elettronica',
       type: 'vendo',
       price: 450,
@@ -203,24 +209,28 @@ export default function HomePage() {
   ]
 
   const filteredItems = items.filter(item => {
+    const kindMatch = kindFilter === 'all' || item.kind === kindFilter
     const categoryMatch = categoryFilter === 'all' || item.category === categoryFilter
     const typeMatch = typeFilter === 'all' || item.type === typeFilter
-    return categoryMatch && typeMatch
+    return kindMatch && categoryMatch && typeMatch
   })
 
   const getTypeInfo = (type: string) => {
-    return ITEM_TYPES.find(t => t.value === type) || ITEM_TYPES[0]
+    return getAllTypes().find(t => t.value === type) || getAllTypes()[0]
   }
 
   const getCategoryInfo = (category: string) => {
-    return CATEGORIES.find(c => c.value === category) || CATEGORIES[0]
+    return getAllCategories().find(c => c.value === category) || getAllCategories()[0]
+  }
+
+  const getKindInfo = (kind: string) => {
+    return ITEM_KINDS.find(k => k.value === kind) || ITEM_KINDS[0]
   }
 
   if (authLoading) {
     return (
       <div className="app-container">
         <div className="loading">
-          <LocalSwapLogo size={64} className="animate-pulse" />
           <div className="empty-title">Caricamento LocalSwap...</div>
           <div className="loading-dots">
             <span>.</span><span>.</span><span>.</span>
@@ -232,52 +242,35 @@ export default function HomePage() {
 
   return (
     <div className="app-container">
-      {/* Header */}
-      <div className="header">
-        <div className="header-content">
-          <div className="header-top">
-            <LocalSwapLogo size={36} />
-          
-            {user ? (
-              <div className="auth-section">
-                <NotificationPanel />
-                <span className="username">
-                  Ciao {user.displayName || user.email?.split('@')[0]}!
-                </span>
-                <button
-                  onClick={logout}
-                  className="logout-btn"
-                >
-                  <LogOut size={16} />
-                </button>
-              </div>
-            ) : (
-              <Link href="/auth/login" className="login-btn">
-                <User size={16} />
-                Accedi
-              </Link>
-            )}
-          </div>
-          
-          <div className="location-status">
-            <MapPin size={16} />
-            <span>{locationStatus}</span>
-          </div>
-          
-        </div>
-      </div>
+      <Header 
+        user={user} 
+        onLogout={logout} 
+        locationStatus={locationStatus}
+        showLocation={true}
+      />
 
       {/* Main Content */}
       <main className="main">
         {/* Add Item Button */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          {(() => {
+            console.log('🏠 HomePage: User state:', { 
+              user: user?.uid, 
+              email: user?.email, 
+              authLoading,
+              userExists: !!user 
+            })
+            return null
+          })()}
           {user ? (
-            <Link href="/add-item">
-              <button className="primary-btn">
-                <Plus size={20} />
-                Aggiungi oggetto
-              </button>
-            </Link>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Link href="/add-item">
+                <button className="primary-btn">
+                  <Plus size={20} />
+                  Aggiungi
+                </button>
+              </Link>
+            </div>
           ) : (
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <Link href="/auth/login">
@@ -299,24 +292,38 @@ export default function HomePage() {
         {/* Filters */}
         <div className="filters">
           <select 
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">Tutto</option>
+            {ITEM_KINDS.map(kind => (
+              <option key={kind.value} value={kind.value}>
+                {kind.emoji} {kind.label}
+              </option>
+            ))}
+          </select>
+          
+          <select 
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="filter-select"
           >
             <option value="all">Tutte le categorie</option>
-            {CATEGORIES.map(cat => (
+            {getAllCategories().map(cat => (
               <option key={cat.value} value={cat.value}>
                 {cat.label}
               </option>
             ))}
           </select>
+          
           <select 
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="filter-select"
           >
             <option value="all">Tutti i tipi</option>
-            {ITEM_TYPES.map(type => (
+            {getAllTypes().map(type => (
               <option key={type.value} value={type.value}>
                 {type.emoji} {type.label}
               </option>
@@ -336,14 +343,24 @@ export default function HomePage() {
             <div className="empty-state">
               <div className="empty-icon">🔍</div>
               <h3 className="empty-title">
-                Nessun oggetto nelle vicinanze
+                {kindFilter === 'object' 
+                  ? 'Nessun oggetto nelle vicinanze'
+                  : kindFilter === 'service'
+                  ? 'Nessun servizio nelle vicinanze'
+                  : 'Niente nelle vicinanze'
+                }
               </h3>
               <p className="empty-description">
-                Non ci sono oggetti nel raggio di 500m dalla tua posizione
+                {kindFilter === 'object' 
+                  ? 'Non ci sono oggetti nel raggio di 500m dalla tua posizione'
+                  : kindFilter === 'service'
+                  ? 'Non ci sono servizi offerti nel raggio di 500m dalla tua posizione'
+                  : 'Non ci sono oggetti o servizi nel raggio di 500m dalla tua posizione'
+                }
               </p>
               {!user && (
                 <Link href="/auth/login" className="empty-link">
-                  Accedi per vedere tutti gli oggetti →
+                  Accedi per vedere tutto →
                 </Link>
               )}
             </div>
@@ -351,19 +368,26 @@ export default function HomePage() {
             filteredItems.map((item, index) => {
               const typeInfo = getTypeInfo(item.type)
               const categoryInfo = getCategoryInfo(item.category)
+              const kindInfo = getKindInfo(item.kind)
               
               return (
                 <div 
                   key={item.id} 
-                  className="item-card"
+                  className={`item-card ${item.kind === 'service' ? 'item-card-service' : 'item-card-object'}`}
                   style={{ 
                     animationDelay: `${index * 100}ms`
                   }}
                 >
                   <div className="item-header">
-                    <h3 className="item-title">
-                      {item.title}
-                    </h3>
+                    <div className="item-title-section">
+                      <div className="kind-indicator">
+                        <span className="kind-emoji">{kindInfo.emoji}</span>
+                        <span className="kind-label">{kindInfo.label}</span>
+                      </div>
+                      <h3 className="item-title">
+                        {item.title}
+                      </h3>
+                    </div>
                     <div className="distance-badge">
                       {formatDistance(item.distance_meters)}
                     </div>
