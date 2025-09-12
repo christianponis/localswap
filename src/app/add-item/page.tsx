@@ -4,15 +4,20 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, MapPin, Euro, Clock, Tag, FileText, Camera } from 'lucide-react'
 import { LocalSwapLogo } from '@/components/LocalSwapLogo'
-import { CATEGORIES, ITEM_TYPES, APP_CONFIG } from '@/lib/constants'
-import { useAuth } from '@/hooks/useAuth'
+import { 
+  CATEGORIES, ITEM_TYPES, APP_CONFIG, 
+  ITEM_KINDS, getCategoriesForKind, getTypesForKind,
+  OBJECT_CATEGORIES, SERVICE_CATEGORIES,
+  OBJECT_TYPES, SERVICE_TYPES
+} from '@/lib/constants'
+import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { ImageUpload } from '@/components/ImageUpload'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function AddItemPage() {
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useFirebaseAuth()
   const { showSuccess, showError } = useNotifications()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -20,18 +25,19 @@ export default function AddItemPage() {
 
   // Debug auth status and redirect if not authenticated
   useEffect(() => {
-    console.log('Auth status:', { user: user?.id, email: user?.email, profile, authLoading })
+    console.log('AddItem Auth status:', { user: user?.uid, email: user?.email, authLoading })
     
     // Redirect to login if not authenticated and auth loading is complete
     if (!authLoading && !user) {
       console.log('User not authenticated, redirecting to login')
       router.push('/auth/login?next=/add-item')
     }
-  }, [user, profile, authLoading, router])
+  }, [user, authLoading, router])
   
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    kind: 'object' as 'object' | 'service', // Nuovo campo: oggetto o servizio
     category: '',
     type: '',
     price: '',
@@ -83,8 +89,15 @@ export default function AddItemPage() {
       return
     }
 
-    if (formData.type === 'vendo' && (!formData.price || parseFloat(formData.price) <= 0)) {
+    // Validazione prezzo per vendita oggetti
+    if (formData.kind === 'object' && formData.type === 'vendo' && (!formData.price || parseFloat(formData.price) <= 0)) {
       setMessage('Inserisci un prezzo valido per gli oggetti in vendita')
+      return
+    }
+    
+    // Validazione prezzo per servizi (opzionale)
+    if (formData.kind === 'service' && formData.price && parseFloat(formData.price) <= 0) {
+      setMessage('Se specifichi un prezzo, deve essere maggiore di 0')
       return
     }
 
@@ -95,14 +108,15 @@ export default function AddItemPage() {
       const itemData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
+        kind: formData.kind,
         category: formData.category,
         type: formData.type,
-        price: formData.type === 'vendo' ? parseFloat(formData.price) : null,
+        price: (formData.price && parseFloat(formData.price) > 0) ? parseFloat(formData.price) : null,
         currency: 'EUR',
         location: `SRID=4326;POINT(${formData.location_lng} ${formData.location_lat})`,
         address_hint: formData.location_text,
         images: formData.images,
-        user_id: user.id,
+        user_id: user.uid,
         status: 'active'
       }
 
@@ -120,7 +134,7 @@ export default function AddItemPage() {
           code: error.code
         })
         console.error('Item data sent:', itemData)
-        console.error('User info:', { user: user?.id, email: user?.email })
+        console.error('User info:', { user: user?.uid, email: user?.email })
         
         if (error.message?.includes('row-level security')) {
           setMessage('Devi essere autenticato per aggiungere oggetti. Effettua il login.')
@@ -132,12 +146,14 @@ export default function AddItemPage() {
           showError('Errore nella pubblicazione', errorMsg)
         }
       } else {
-        setMessage('Oggetto aggiunto con successo!')
+        var itemKindLabel = formData.kind === 'object' ? 'Oggetto' : 'Servizio'
+        setMessage(`${itemKindLabel} aggiunto con successo!`)
         console.log('Item created successfully:', data)
         
         // Show success notification
+        itemKindLabel = formData.kind === 'object' ? 'Oggetto' : 'Servizio'
         showSuccess(
-          'Oggetto pubblicato!',
+          `${itemKindLabel} pubblicato!`,
           `"${formData.title}" è ora visibile ai tuoi vicini`,
           { label: 'Visualizza', url: '/' }
         )
@@ -146,12 +162,14 @@ export default function AddItemPage() {
         setFormData({
           title: '',
           description: '',
+          kind: 'object',
           category: '',
           type: '',
           price: '',
           location_lat: formData.location_lat,
           location_lng: formData.location_lng,
-          location_text: formData.location_text
+          location_text: formData.location_text,
+          images: []
         })
         
         // Redirect to home after success
@@ -168,14 +186,27 @@ export default function AddItemPage() {
   }
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value }
+      
+      // Resetta categoria e tipo quando si cambia il kind
+      if (field === 'kind') {
+        updated.category = ''
+        updated.type = ''
+        updated.price = ''
+      }
+      
+      return updated
+    })
   }
 
-  const selectedType = ITEM_TYPES.find(t => t.value === formData.type)
-  const selectedCategory = CATEGORIES.find(c => c.value === formData.category)
+  // Ottieni le categorie e tipi appropriati in base al kind
+  const availableCategories = getCategoriesForKind(formData.kind)
+  const availableTypes = getTypesForKind(formData.kind)
+  
+  const selectedType = availableTypes.find(t => t.value === formData.type)
+  const selectedCategory = availableCategories.find(c => c.value === formData.category)
+  const selectedKind = ITEM_KINDS.find(k => k.value === formData.kind)
 
   // Show loading while checking auth
   if (authLoading) {
@@ -225,18 +256,47 @@ export default function AddItemPage() {
 
       <main className="main">
         <div className="page-header">
-          <h1 className="page-title">Aggiungi Oggetto</h1>
+          <h1 className="page-title">
+            {formData.kind === 'object' ? 'Aggiungi Oggetto' : 'Offri Servizio'}
+          </h1>
           <p className="page-subtitle">
-            Condividi qualcosa con i tuoi vicini
+            {formData.kind === 'object' 
+              ? 'Condividi qualcosa con i tuoi vicini'
+              : 'Offri i tuoi servizi nel vicinato'
+            }
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="add-item-form">
+          {/* Kind Selection */}
+          <div className="form-group">
+            <label className="form-label">
+              <FileText size={16} />
+              Cosa vuoi condividere? *
+            </label>
+            <div className="kind-selector">
+              {ITEM_KINDS.map(kind => (
+                <button
+                  key={kind.value}
+                  type="button"
+                  onClick={() => handleInputChange('kind', kind.value)}
+                  className={`kind-option ${formData.kind === kind.value ? 'kind-option-active' : ''}`}
+                >
+                  <span className="kind-emoji">{kind.emoji}</span>
+                  <div className="kind-text">
+                    <div className="kind-label">{kind.label}</div>
+                    <div className="kind-description">{kind.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Images */}
           <div className="form-group">
             <label className="form-label">
               <Camera size={16} />
-              Foto dell'oggetto
+              {formData.kind === 'object' ? 'Foto dell\'oggetto' : 'Foto del servizio (opzionale)'}
             </label>
             <ImageUpload
               onImagesChange={(urls) => setFormData({...formData, images: urls})}
@@ -255,7 +315,10 @@ export default function AddItemPage() {
               type="text"
               value={formData.title}
               onChange={(e) => handleInputChange('title', e.target.value)}
-              placeholder="es. Trapano elettrico Bosch"
+              placeholder={formData.kind === 'object' 
+                ? 'es. Trapano elettrico Bosch'
+                : 'es. Ripetizioni di matematica'
+              }
               className="form-input"
               maxLength={100}
               required
@@ -276,7 +339,7 @@ export default function AddItemPage() {
               required
             >
               <option value="">Seleziona tipo</option>
-              {ITEM_TYPES.map(type => (
+              {availableTypes.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.emoji} {type.label}
                 </option>
@@ -305,7 +368,7 @@ export default function AddItemPage() {
               required
             >
               <option value="">Seleziona categoria</option>
-              {CATEGORIES.map(cat => (
+              {availableCategories.map(cat => (
                 <option key={cat.value} value={cat.value}>
                   {cat.emoji} {cat.label}
                 </option>
@@ -321,12 +384,16 @@ export default function AddItemPage() {
             )}
           </div>
 
-          {/* Price (only for sale items) */}
-          {formData.type === 'vendo' && (
+          {/* Price */}
+          {(formData.kind === 'object' && formData.type === 'vendo') || 
+           (formData.kind === 'service') ? (
             <div className="form-group">
               <label className="form-label">
                 <Euro size={16} />
-                Prezzo *
+                {formData.kind === 'object' && formData.type === 'vendo' 
+                  ? 'Prezzo *' 
+                  : 'Prezzo (opzionale)'
+                }
               </label>
               <div className="price-input-container">
                 <span className="price-currency">€</span>
@@ -338,10 +405,15 @@ export default function AddItemPage() {
                   className="form-input price-input"
                   min="0.01"
                   step="0.01"
-                  required
+                  required={formData.kind === 'object' && formData.type === 'vendo'}
                 />
               </div>
-              <p className="form-hint">Inserisci un prezzo equo per il tuo oggetto</p>
+              <p className="form-hint">
+                {formData.kind === 'object' 
+                  ? 'Inserisci un prezzo equo per il tuo oggetto'
+                  : 'Tariffa oraria, a progetto o lascia vuoto per accordi diretti'
+                }
+              </p>
             </div>
           )}
 
@@ -354,7 +426,10 @@ export default function AddItemPage() {
             <textarea
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Descrivi l'oggetto, le condizioni, disponibilità..."
+              placeholder={formData.kind === 'object'
+                ? "Descrivi l'oggetto, le condizioni, disponibilità..."
+                : "Descrivi il servizio, la tua esperienza, disponibilità..."
+              }
               className="form-textarea"
               rows={4}
               maxLength={500}
@@ -371,7 +446,7 @@ export default function AddItemPage() {
             </div>
             <div className="location-text">{formData.location_text}</div>
             <p className="location-hint">
-              Gli utenti nelle vicinanze (entro 500m) potranno vedere questo oggetto
+              Gli utenti nelle vicinanze (entro 500m) potranno vedere questo {formData.kind === 'object' ? 'oggetto' : 'servizio'}
             </p>
           </div>
 
@@ -381,7 +456,10 @@ export default function AddItemPage() {
             disabled={loading}
             className="submit-btn submit-btn-large"
           >
-            {loading ? 'Pubblicazione...' : 'Pubblica Oggetto'}
+            {loading 
+              ? 'Pubblicazione...' 
+              : `Pubblica ${formData.kind === 'object' ? 'Oggetto' : 'Servizio'}`
+            }
           </button>
 
           {/* Message Display */}
