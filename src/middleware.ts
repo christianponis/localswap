@@ -9,8 +9,7 @@ export async function middleware(request: NextRequest) {
     // Protected routes that require authentication (excluding add-item for now)
     const protectedRoutes = [
       '/dashboard',
-      '/profile', 
-      '/messages',
+      '/profile',
       '/settings'
     ]
     

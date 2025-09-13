@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { formatDistance, formatTimeAgo } from '@/lib/utils'
 import { APP_CONFIG, getAllCategories, getAllTypes, ITEM_KINDS } from '@/lib/constants'
-import { Plus, User, MapPin } from 'lucide-react'
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/Header'
+import { BottomNavigation } from '@/components/BottomNavigation'
+import { AdBanner } from '@/components/AdBanner'
+import { SwipeableStack } from '@/components/SwipeableStack'
 import Link from 'next/link'
 
 export default function HomePage() {
@@ -95,7 +96,7 @@ export default function HomePage() {
         })
         setLocationStatus('✅ Posizione rilevata')
       },
-      (error) => {
+      (err) => {
         console.warn('Geolocalizzazione non disponibile, usando posizione di demo')
         setLocationStatus('📍 Usando posizione di demo')
         // Usa posizione default per demo
@@ -136,7 +137,23 @@ export default function HomePage() {
         `)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(10) as {
+          data: Array<{
+            id: string
+            title: string
+            description: string
+            kind: string
+            category: string
+            type: string
+            price: number | null
+            currency: string
+            address_hint: string
+            status: string
+            created_at: string
+            user_id: string
+          }> | null,
+          error: any
+        }
 
       console.log('Fetched items:', allItems)
       console.log('Fetch error:', fetchError)
@@ -145,21 +162,43 @@ export default function HomePage() {
         console.warn('Database error, usando dati di demo:', fetchError)
         setItems(getMockItems())
       } else if (allItems && allItems.length > 0) {
+        // Helper function to extract username from Firebase UID/email
+        const extractUsername = (userId: string): string => {
+          if (!userId) return 'Utente'
+
+          if (userId.includes('@')) {
+            // Extract username from email and make it friendly
+            const username = userId.split('@')[0]
+            // Remove numbers and capitalize first letter
+            const cleanName = username.replace(/[0-9]+$/g, '')
+            return cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
+          }
+
+          // If it's not an email, create a friendly short name
+          return userId.length > 8 ? userId.substring(0, 8) : userId
+        }
+
         // Format items to match expected structure
         const formattedItems = allItems.map(item => ({
-          ...item,
-          kind: item.kind || 'object', // Fallback to 'object' if kind is missing
-          distance_meters: 100, // Fake distance for now
-          username: 'Utente', // We'll fetch username separately later
-          avatar_url: null
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          kind: item.kind || 'object',
+          category: item.category,
+          type: item.type,
+          price: item.price || undefined,
+          distance_meters: 100,
+          created_at: item.created_at,
+          username: extractUsername(item.user_id),
+          avatar_url: undefined
         }))
         setItems(formattedItems)
       } else {
         console.log('No real items found, using mock data')
         setItems(getMockItems())
       }
-    } catch (error) {
-      console.error('Error:', error)
+    } catch (err) {
+      console.error('Error:', err)
       setItems(getMockItems())
     } finally {
       setLoading(false)
@@ -174,11 +213,11 @@ export default function HomePage() {
       kind: 'object',
       category: 'casa',
       type: 'presto',
-      price: null,
+      price: undefined,
       distance_meters: 150,
       created_at: new Date(Date.now() - 1800000).toISOString(),
       username: 'mario_92',
-      avatar_url: null,
+      avatar_url: undefined,
     },
     {
       id: '2',
@@ -191,7 +230,7 @@ export default function HomePage() {
       distance_meters: 280,
       created_at: new Date(Date.now() - 3600000).toISOString(),
       username: 'prof_marco',
-      avatar_url: null,
+      avatar_url: undefined,
     },
     {
       id: '3',
@@ -204,7 +243,7 @@ export default function HomePage() {
       distance_meters: 420,
       created_at: new Date(Date.now() - 7200000).toISOString(),
       username: 'tech_guru',
-      avatar_url: null,
+      avatar_url: undefined,
     },
   ]
 
@@ -214,18 +253,6 @@ export default function HomePage() {
     const typeMatch = typeFilter === 'all' || item.type === typeFilter
     return kindMatch && categoryMatch && typeMatch
   })
-
-  const getTypeInfo = (type: string) => {
-    return getAllTypes().find(t => t.value === type) || getAllTypes()[0]
-  }
-
-  const getCategoryInfo = (category: string) => {
-    return getAllCategories().find(c => c.value === category) || getAllCategories()[0]
-  }
-
-  const getKindInfo = (kind: string) => {
-    return ITEM_KINDS.find(k => k.value === kind) || ITEM_KINDS[0]
-  }
 
   if (authLoading) {
     return (
@@ -241,56 +268,21 @@ export default function HomePage() {
   }
 
   return (
-    <div className="app-container">
-      <Header 
-        user={user} 
-        onLogout={logout} 
+    <div className="app-layout">
+      <Header
+        user={user}
+        onLogout={logout}
         locationStatus={locationStatus}
         showLocation={true}
       />
 
-      {/* Main Content */}
-      <main className="main">
-        {/* Add Item Button */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          {(() => {
-            console.log('🏠 HomePage: User state:', { 
-              user: user?.uid, 
-              email: user?.email, 
-              authLoading,
-              userExists: !!user 
-            })
-            return null
-          })()}
-          {user ? (
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <Link href="/add-item">
-                <button className="primary-btn">
-                  <Plus size={20} />
-                  Aggiungi
-                </button>
-              </Link>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <Link href="/auth/login">
-                <button className="primary-btn">
-                  <User size={20} />
-                  Accedi per aggiungere
-                </button>
-              </Link>
-              <button 
-                onClick={() => setItems(getMockItems())}
-                className="demo-btn"
-              >
-                🚀 Modalità Demo
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Top Ad Banner */}
+      <AdBanner position="top" type="banner" />
 
-        {/* Filters */}
-        <div className="filters">
+      {/* Main Content - No Scroll */}
+      <main className="main-content-fullscreen">
+        {/* Filters - Fixed Top */}
+        <div className="filters-fixed">
           <select 
             value={kindFilter}
             onChange={(e) => setKindFilter(e.target.value)}
@@ -331,19 +323,17 @@ export default function HomePage() {
           </select>
         </div>
 
-        {/* Items List */}
-        <div className="items-grid">
+        {/* Swipeable Stack */}
+        <div className="swipe-container">
           {loading ? (
-            <div className="loading">
-              <div className="loading-skeleton skeleton-1"></div>
-              <div className="loading-skeleton skeleton-2"></div>
-              <div className="loading-skeleton skeleton-3"></div>
+            <div className="loading-stack">
+              <div className="loading-skeleton skeleton-card"></div>
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🔍</div>
               <h3 className="empty-title">
-                {kindFilter === 'object' 
+                {kindFilter === 'object'
                   ? 'Nessun oggetto nelle vicinanze'
                   : kindFilter === 'service'
                   ? 'Nessun servizio nelle vicinanze'
@@ -351,7 +341,7 @@ export default function HomePage() {
                 }
               </h3>
               <p className="empty-description">
-                {kindFilter === 'object' 
+                {kindFilter === 'object'
                   ? 'Non ci sono oggetti nel raggio di 500m dalla tua posizione'
                   : kindFilter === 'service'
                   ? 'Non ci sono servizi offerti nel raggio di 500m dalla tua posizione'
@@ -365,82 +355,24 @@ export default function HomePage() {
               )}
             </div>
           ) : (
-            filteredItems.map((item, index) => {
-              const typeInfo = getTypeInfo(item.type)
-              const categoryInfo = getCategoryInfo(item.category)
-              const kindInfo = getKindInfo(item.kind)
-              
-              return (
-                <div 
-                  key={item.id} 
-                  className={`item-card ${item.kind === 'service' ? 'item-card-service' : 'item-card-object'}`}
-                  style={{ 
-                    animationDelay: `${index * 100}ms`
-                  }}
-                >
-                  <div className="item-header">
-                    <div className="item-title-section">
-                      <div className="kind-indicator">
-                        <span className="kind-emoji">{kindInfo.emoji}</span>
-                        <span className="kind-label">{kindInfo.label}</span>
-                      </div>
-                      <h3 className="item-title">
-                        {item.title}
-                      </h3>
-                    </div>
-                    <div className="distance-badge">
-                      {formatDistance(item.distance_meters)}
-                    </div>
-                  </div>
-                  
-                  <div className={`type-badge type-${item.type}`}>
-                    <span>{typeInfo.emoji}</span>
-                    {typeInfo.label}
-                  </div>
-                  
-                  <p className="item-description">
-                    {item.description}
-                  </p>
-                  
-                  {item.price && (
-                    <div className="item-price">
-                      €{item.price}
-                    </div>
-                  )}
-                  
-                  <div className="item-footer">
-                    <div className="category-info">
-                      <span>{categoryInfo.emoji}</span>
-                      <span>{categoryInfo.label}</span>
-                    </div>
-                    <div>
-                      {formatTimeAgo(item.created_at)}
-                    </div>
-                  </div>
-                  
-                  {item.username && (
-                    <div className="item-username">
-                      da <span className="username-text">@{item.username}</span>
-                    </div>
-                  )}
-                </div>
-              )
-            })
+            <SwipeableStack items={filteredItems} user={user} />
           )}
         </div>
 
-        {location && (
-          <div className="location-info">
-            <div className="location-header">
-              <MapPin size={16} style={{ color: '#10b981' }} />
-              <span>Raggio ricerca: {APP_CONFIG.MAX_RADIUS_METERS}m</span>
-            </div>
-            <div className="location-coords">
-              {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
-            </div>
+        {/* Quick Demo Button */}
+        {!user && (
+          <div className="demo-action">
+            <button
+              onClick={() => setItems(getMockItems())}
+              className="demo-btn-floating"
+            >
+              🚀 Demo
+            </button>
           </div>
         )}
       </main>
+
+      <BottomNavigation user={user} />
     </div>
   )
 }

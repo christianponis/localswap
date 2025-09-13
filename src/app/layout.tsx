@@ -16,8 +16,6 @@ export const metadata: Metadata = {
   title: "LocalSwap - Scambi nel vicinato",
   description: "Marketplace hyperlocale per scambi immediati nel raggio di 500m",
   manifest: "/manifest.json",
-  themeColor: "#4CAF50",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   icons: {
     icon: "/icon-192x192.png",
     apple: "/icon-192x192.png",
@@ -35,7 +33,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        <div id="app" className="min-h-screen bg-background">
+        <div id="app" className="app-layout">
           {children}
         </div>
       </body>
