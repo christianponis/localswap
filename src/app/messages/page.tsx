@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth'
 import { Header } from '@/components/Header'
 import { ChatWindow } from '@/components/ChatWindow'
@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { chatService, type Conversation, type Message } from '@/lib/chatService'
 
-export default function MessagesPage() {
+function MessagesContent() {
   const { user, loading: authLoading } = useFirebaseAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -261,5 +261,22 @@ export default function MessagesPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="app-container">
+        <div className="loading">
+          <div className="empty-title">Caricamento messaggi...</div>
+          <div className="loading-dots">
+            <span>.</span><span>.</span><span>.</span>
+          </div>
+        </div>
+      </div>
+    }>
+      <MessagesContent />
+    </Suspense>
   )
 }
