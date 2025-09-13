@@ -359,14 +359,14 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Quick Demo Button */}
-        {!user && (
-          <div className="demo-action">
+        {/* Demo Button in Filters */}
+        {!user && filteredItems.length === 0 && (
+          <div className="demo-hint">
             <button
               onClick={() => setItems(getMockItems())}
-              className="demo-btn-floating"
+              className="demo-btn-inline"
             >
-              🚀 Demo
+              🚀 Carica dati demo
             </button>
           </div>
         )}
